@@ -109,7 +109,7 @@ flow_criterion = nn.MSELoss()
 Tensor = torch.cuda.FloatTensor
 
 
-def train(epoch):
+def train(epoch): 
     model.train()
     epoch_loss = []
     for batch_idx, batch in tqdm(enumerate(training_data_loader, 1),

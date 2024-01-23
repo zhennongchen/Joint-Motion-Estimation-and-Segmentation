@@ -134,7 +134,7 @@ def test():
     LV_dice = 0
     Myo_dice = 0
     RV_dice = 0
-    test_batches = 0
+    test_batches = 0 
 
     for batch_idx, batch in tqdm(enumerate(testing_data_loader, 1),
                                  total=len(testing_data_loader)):

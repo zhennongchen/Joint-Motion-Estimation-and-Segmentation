@@ -39,7 +39,7 @@ def load_data_3d(data_path, filename, size):
     rand_z = image.shape[2]//2
 
     # preprocessing
-    image_max = np.max(np.abs(image))
+    image_max = np.max(np.abs(image)) 
     image /= image_max
     image_sa = image[...,rand_z, rand_t]
     image_sa = image_sa[np.newaxis, np.newaxis]

@@ -11,12 +11,13 @@ def relu():
     return nn.ReLU(inplace=True)
 
 
-def conv(in_channels, out_channels, kernel_size=3, stride=1, padding = 1, nonlinearity = relu):
+def conv(in_channels, out_channels, kernel_size=3, stride=1, padding = 1):#, nonlinearity = relu):
     conv_layer = nn.Conv2d(in_channels = in_channels, out_channels= out_channels, kernel_size = kernel_size, stride = stride, padding = padding, bias = False)
     nn.init.xavier_uniform(conv_layer.weight, gain=np.sqrt(2.0))
 
-    nll_layer = nonlinearity()
+    # nll_layer = nonlinearity()
     bn_layer = nn.BatchNorm2d(out_channels)
+    nll_layer = nn.ReLU()
     # nn.init.constant_(bn_layer.weight, 1)
     # nn.init.constant_(bn_layer.bias, 0)
 
