@@ -39,24 +39,26 @@ def train_loop(args, model, data_loader_train, optimizer):
             # segmentation
             batch_seg = rearrange(batch['mask'], 'b c h w -> c b h w')
             seg_gt = torch.clone(batch_seg).to("cuda")
+            # print('seg_gt shape: ', seg_gt.shape, ' unique: ', torch.unique(seg_gt))
 
             optimizer.zero_grad()
-            net = model(image_target, image_source, image_source)
+            net = model(image_target, image_source, image_target)
+            # print('net[outs_softmax] shape: ', net['outs_softmax'].shape)
 
-            
             flow_loss = flow_criterion(net['fr_st'], image_source) + 0.01 * ff.huber_loss(net['out'])
-            seg_loss = seg_criterion(net['outs_softmax'],seg_gt.squeeze(1).long())
+            seg_loss = seg_criterion(net['outs'],seg_gt.squeeze(1).long())
 
             loss = args.loss_weight[0] * flow_loss +  args.loss_weight[1] * seg_loss
             loss.backward()
             optimizer.step()
 
-            pred_seg = net['outs_softmax']
+            pred_seg = net['outs']
+
             mask_for_dice = rearrange(batch['mask'], 'b c h w -> c b h w')
             mask_for_dice = rearrange(mask_for_dice, 'b c h w -> c (h w b)').to("cuda")
 
             Dice_loss = ff.customized_dice_loss(pred_seg, mask_for_dice.long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
-
+            
 
         loss_list.append(loss.item())
         flow_loss_list.append(flow_loss.item())

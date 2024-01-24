@@ -11,12 +11,13 @@ from nibabel.affines import apply_affine
 import re
 from skimage.measure import label, regionprops
 import torch
+import torch.nn.functional as F
 from einops import rearrange
 
 def customized_dice_loss(pred, mask, num_classes, exclude_index = 10):
-    # pred_softmax = F.softmax(pred,dim = 1)
+    pred_softmax = F.softmax(pred,dim = 1)
  
-    pred_softmax = rearrange(pred,'b c h w -> 1 c (h w b)')
+    pred_softmax = rearrange(pred_softmax,'b c h w -> 1 c (h w b)')
 
     dice_loss = 0.0
 

@@ -37,14 +37,14 @@ def valid_loop(args, model, data_loader_valid):
             batch_seg = rearrange(batch['mask'], 'b c h w -> c b h w')
             seg_gt = torch.clone(batch_seg).to("cuda")
 
-            net = model(image_target, image_source, image_source)
+            net = model(image_target, image_source, image_target)
             
             flow_loss = flow_criterion(net['fr_st'], image_source) + 0.01 * ff.huber_loss(net['out'])
-            seg_loss = seg_criterion(net['outs_softmax'],seg_gt.squeeze(1).long())
+            seg_loss = seg_criterion(net['outs'],seg_gt.squeeze(1).long())
 
             loss = args.loss_weight[0] * flow_loss +  args.loss_weight[1] * seg_loss
 
-            pred_seg = net['outs_softmax']
+            pred_seg = net['outs']
             mask_for_dice = rearrange(batch['mask'], 'b c h w -> c b h w')
             mask_for_dice = rearrange(mask_for_dice, 'b c h w -> c (h w b)').to("cuda")
 
@@ -61,7 +61,7 @@ def valid_loop(args, model, data_loader_valid):
 
 
 def pred_save(batch, output,args):
-    pred_seg = np.rollaxis(output["outs_softmax"].argmax(1).detach().cpu().numpy(), 0, 3)
+    pred_seg = np.rollaxis(output["outs"].argmax(1).detach().cpu().numpy(), 0, 3)
                         
 
     original_shape = np.array([x.item() for x in batch["original_shape"]])
