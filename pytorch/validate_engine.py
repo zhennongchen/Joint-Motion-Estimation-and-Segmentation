@@ -37,7 +37,7 @@ def valid_loop(args, model, data_loader_valid):
             batch_seg = rearrange(batch['mask'], 'b c h w -> c b h w')
             seg_gt = torch.clone(batch_seg).to("cuda")
 
-            net = model(image_target, image_source, image_target)
+            net = model(image_target, image_source, image_source)
             
             flow_loss = flow_criterion(net['fr_st'], image_source) + 0.01 * ff.huber_loss(net['out'])
             seg_loss = seg_criterion(net['outs_softmax'],seg_gt.squeeze(1).long())

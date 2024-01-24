@@ -17,6 +17,7 @@ def train_loop(args, model, data_loader_train, optimizer):
     # define loss
     flow_criterion = torch.nn.MSELoss()
     if args.turn_zero_seg_slice_into is not None:
+        print('ignore index: ', args.turn_zero_seg_slice_into)
         seg_criterion = torch.nn.CrossEntropyLoss(ignore_index = args.turn_zero_seg_slice_into)
     else:
         seg_criterion = torch.nn.CrossEntropyLoss()
@@ -40,7 +41,8 @@ def train_loop(args, model, data_loader_train, optimizer):
             seg_gt = torch.clone(batch_seg).to("cuda")
 
             optimizer.zero_grad()
-            net = model(image_target, image_source, image_target)
+            net = model(image_target, image_source, image_source)
+
             
             flow_loss = flow_criterion(net['fr_st'], image_source) + 0.01 * ff.huber_loss(net['out'])
             seg_loss = seg_criterion(net['outs_softmax'],seg_gt.squeeze(1).long())

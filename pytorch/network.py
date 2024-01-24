@@ -150,7 +150,8 @@ class Seg_Motion_Net(nn.Module):
         net['fr_st'] = F.grid_sample(x_img, net['grid'])
 
         # segmentation branch
-        net['conv0ss'] = x_img
+        net['conv0ss'] = x_pred ##### important! x_pred is the one with all the time frames
+
         for i in range(5):
             net['conv%dss' % (i + 1)] = self.conv_blocks[i](net['conv%dss' % i])
             net['out%ds' % (i+1)] = self.convs[i](net['conv%dss' % (i+1)])
