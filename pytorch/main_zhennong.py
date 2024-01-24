@@ -37,7 +37,7 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'joint_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 80
+    pretrained_model_epoch = None
 
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
@@ -53,7 +53,7 @@ def get_args_parser():
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
-    parser.add_argument('--loss_weight', default= [1,0.01]) # [flow_loss, seg_loss]
+    parser.add_argument('--loss_weight', default= [1,0]) # [flow_loss, seg_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
@@ -191,7 +191,7 @@ def run(args):
         pred_batch_list = None
         
         dataset_pred = build_data_CMR(args, args.dataset_name,
-                    valid_batch_list, valid_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
+                    pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = False,
                     augment_list = [], augment_frequency = -0.1,
                     return_arrays_or_dictionary = 'dictionary')
@@ -201,12 +201,14 @@ def run(args):
 
 
         # build model
-        model = Seg_Motion_Net(args)
-        model.to(device)
+        
+      
 
         with torch.no_grad():
-           
+           model = Seg_Motion_Net(args)
+           model.to(device)
            pretrained_model = torch.load(args.pretrained_model)
+           print('loaded pretrained model from: ', args.pretrained_model)
            model.load_state_dict(pretrained_model['model'])
 
            for batch_idx, batch in enumerate(data_loader_pred, 1):

@@ -50,7 +50,6 @@ def valid_loop(args, model, data_loader_valid):
 
             Dice_loss = ff.customized_dice_loss(pred_seg, mask_for_dice.long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
 
-
         loss_list.append(loss.item())
         flow_loss_list.append(flow_loss.item())
         seg_loss_list.append(seg_loss.item())
@@ -61,7 +60,9 @@ def valid_loop(args, model, data_loader_valid):
 
 
 def pred_save(batch, output,args):
-    pred_seg = np.rollaxis(output["outs"].argmax(1).detach().cpu().numpy(), 0, 3)
+
+    pred_softmax = F.softmax(output["outs"],dim = 1)
+    pred_seg = np.rollaxis(pred_softmax.argmax(1).detach().cpu().numpy(), 0, 3)
                         
 
     original_shape = np.array([x.item() for x in batch["original_shape"]])
