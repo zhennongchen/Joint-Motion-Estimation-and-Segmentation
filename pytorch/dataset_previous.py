@@ -27,7 +27,7 @@ class TrainDataset(data.Dataset):
         if self.transform:
             input, target = self.transform(input, target)
 
-        image = input[0,:1]
+        image = input[0,:1] 
         image_pred = input[0,1:]
 
         return image, image_pred, target[0,0]

@@ -4,9 +4,9 @@ import os
 
 from torch.utils.data import Dataset, DataLoader
 
-import sam_cmr.Defaults as Defaults
-import sam_cmr.Build_list_zhennong.Build_list as Build_list
-import sam_cmr.dataset.CMR.dataset_zhennong as dataset_zhennong
+import Joint_motion_seg_estimate_CMR.Defaults as Defaults
+import Joint_motion_seg_estimate_CMR.Build_list_zhennong.Build_list as Build_list
+import Joint_motion_seg_estimate_CMR.pytorch.data.dataset_zhennong as dataset_zhennong
 
 defaults = Defaults.Parameters()
 
@@ -92,23 +92,6 @@ def build_data_CMR(args,dataset_name, train_batch_list, train_index_list, full_o
                                                  augment_frequency = augment_frequency,
                                                  sample_more_base = sample_more_base,
                                                  sample_more_apex= sample_more_apex,)
-    
-    # valid_dataset = dataset_zhennong.Dataset_CMR(patient_list_file,
-    #                                              image_file_list_valid,
-    #                                              seg_file_list_valid,
-    #                                              total_slice_num_list_valid,
-    #                                              return_arrays_or_dictionary = 'dictionary', # 'dictionary' or 'arrays'
-
-    #                                              seg_include_lowest_piexel = 100,
-    #                                              turn_zero_seg_slice_into = args.turn_zero_seg_slice_into,
-                                                 
-    #                                              relabel_LV = relabel_LV,
-    #                                              center_crop_according_to_which_class = [1],
-    #                                              image_shape = [defaults.x_dim, defaults.y_dim],
-    #                                              shuffle = False, 
-    #                                              image_normalization = True,
-    #                                              augment_list = [], # a list of augmentation methods and their range: v range = None for brightness, contrast, sharpness
-    #                                              augment_frequency = 0)
     
 
 

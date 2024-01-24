@@ -85,6 +85,7 @@ class Registration_Net(nn.Module):
         for i in range(5):
             net['conv%d'% (i+1)] = self.conv_blocks[i](net['conv%d'%i])
             net['conv%ds' % (i + 1)] = self.conv_blocks[i](net['conv%ds' % i])
+          
             net['concat%d'%(i+1)] = torch.cat((net['conv%d'% (i+1)], net['conv%ds' % (i + 1)]), 1)
             net['out%d'%(i+1)] = self.conv[i](net['concat%d'%(i+1)])
             if i > 0:
@@ -103,7 +104,7 @@ class Registration_Net(nn.Module):
 
 class Seg_Motion_Net(nn.Module):
     """Joint motion estimation and segmentation """
-    def __init__(self, n_ch=1):
+    def __init__(self, args, n_ch=1):
         super(Seg_Motion_Net, self).__init__()
         self.conv_blocks = [conv_blocks_2(n_ch, 64), conv_blocks_2(64, 128, 2), conv_blocks_3(128, 256, 2), conv_blocks_3(256, 512, 2), conv_blocks_3(512, 512, 2)]
         self.conv = []
@@ -124,7 +125,7 @@ class Seg_Motion_Net(nn.Module):
         self.conv6s = nn.Conv2d(64*5,64,1)
 
         self.conv7s = conv(64,64,1,1,0)
-        self.conv8s = nn.Conv2d(64,4,1)
+        self.conv8s = nn.Conv2d(64,args.num_classes,1)
 
     def forward(self, x, x_pred, x_img):
         # x: source image; x_pred: target image; x_img: image to be segmented

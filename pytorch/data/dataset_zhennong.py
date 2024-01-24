@@ -16,8 +16,8 @@ import matplotlib.pylab as plt
 
 from torch.utils.data import Dataset, DataLoader
 
-import sam_cmr.Data_processing as Data_processing
-import sam_cmr.dataset.CMR.random_aug_zhennong as random_aug
+import Joint_motion_seg_estimate_CMR.Data_processing as Data_processing
+import Joint_motion_seg_estimate_CMR.pytorch.data.random_aug_zhennong as random_aug
 
 # main function:
 class Dataset_CMR(torch.utils.data.Dataset):
@@ -290,12 +290,12 @@ class Dataset_CMR(torch.utils.data.Dataset):
             
             
         # now it's time to turn numpy into tensor and collect as a dictionary (this is the final return)
-        processed_image_torch = torch.from_numpy(np.rollaxis(processed_image, 2, 0)).unsqueeze(0).float()
-        processed_seg_torch = torch.from_numpy(np.rollaxis(processed_seg, 2, 0)).unsqueeze(0)  
+        processed_image_torch = torch.from_numpy(np.rollaxis(processed_image, 2, 0)).float()
+        processed_seg_torch = torch.from_numpy(np.rollaxis(processed_seg, 2, 0))
 
         # also need to return the original image and seg without the augmentation (with center crop done)
-        original_image_torch = torch.from_numpy(np.rollaxis(original_image, 2, 0)).unsqueeze(0).float()
-        original_seg_torch = torch.from_numpy(np.rollaxis(original_seg, 2, 0)).unsqueeze(0)
+        original_image_torch = torch.from_numpy(np.rollaxis(original_image, 2, 0)).float()
+        original_seg_torch = torch.from_numpy(np.rollaxis(original_seg, 2, 0))
 
         # also add infos from patient list spread sheet
         patient_id = os.path.basename(os.path.dirname(image_filename))
