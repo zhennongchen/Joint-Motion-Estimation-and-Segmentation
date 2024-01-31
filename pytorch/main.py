@@ -53,7 +53,7 @@ def get_args_parser():
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
-    parser.add_argument('--loss_weight', default= [1,0.01, 0.005]) # [flow_loss, seg_loss, warp_seg_loss]
+    parser.add_argument('--loss_weight', default= [1,0.1, 0.05]) # [flow_loss, seg_loss, warp_seg_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
@@ -147,7 +147,7 @@ def run(args):
 
         # train loop
         training_log = []
-        valid_loss = np.inf; valid_flow_loss = np.inf; valid_seg_loss = np.inf; valid_dice_loss = np.inf
+        valid_loss = np.inf; valid_flow_loss = np.inf; valid_seg_loss = np.inf; valid_warp_seg_loss = np.inf; valid_dice_loss = np.inf
         
         for epoch in range(args.start_epoch, args.start_epoch + args.epochs):
             print('training epoch:', epoch)
