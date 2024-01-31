@@ -6,7 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 
 import Joint_motion_seg_estimate_CMR.Defaults as Defaults
 import Joint_motion_seg_estimate_CMR.Build_list_zhennong.Build_list as Build_list
-import Joint_motion_seg_estimate_CMR.pytorch.data.dataset_zhennong as dataset_zhennong
+import Joint_motion_seg_estimate_CMR.data.data.dataset_zhennong as dataset_zhennong
 
 defaults = Defaults.Parameters()
 

@@ -15,7 +15,7 @@ import pandas as pd
 from einops import rearrange
 
 from Joint_motion_seg_estimate_CMR.pytorch.network import *
-from Joint_motion_seg_estimate_CMR.pytorch.data_CMR import *
+from Joint_motion_seg_estimate_CMR.data.data_CMR import *
 from Joint_motion_seg_estimate_CMR.pytorch.util import *
 from Joint_motion_seg_estimate_CMR.pytorch.train_engine import *
 from Joint_motion_seg_estimate_CMR.pytorch.validate_engine import *
