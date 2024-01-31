@@ -50,6 +50,10 @@ def valid_loop(args, model, data_loader_valid):
 
             Dice_loss = ff.customized_dice_loss(pred_seg, mask_for_dice.long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
 
+            pred_softmax = F.softmax(net["outs"],dim = 1)
+            pred_seg = np.rollaxis(pred_softmax.argmax(1).detach().cpu().numpy(), 0, 3)
+
+
         loss_list.append(loss.item())
         flow_loss_list.append(flow_loss.item())
         seg_loss_list.append(seg_loss.item())
@@ -98,6 +102,7 @@ def pred_save(batch, output,args):
     affine = nb.load(original_image_file).affine
     original_image = nb.load(original_image_file).get_fdata()[:,:,slice_index,:]
     original_seg = nb.load(original_seg_file).get_fdata()[:,:,slice_index,:]
+
     save_folder = os.path.join(args.output_dir, 'predicts'); ff.make_folder([save_folder])
 
     patient_id = batch["patient_id"][0]

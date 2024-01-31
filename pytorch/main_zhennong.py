@@ -37,7 +37,7 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'joint_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = None
+    pretrained_model_epoch = 200
 
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
@@ -53,7 +53,7 @@ def get_args_parser():
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
-    parser.add_argument('--loss_weight', default= [1,0]) # [flow_loss, seg_loss]
+    parser.add_argument('--loss_weight', default= [1,1]) # [flow_loss, seg_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
