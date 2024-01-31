@@ -153,6 +153,6 @@ class Unet3D(nn.Module):
 
         x = self.final_block(x)
         final_image = self.final_conv(x)
-        print('final image shape is: ', final_image.shape)
+        # print('final image shape is: ', final_image.shape)
       
         return final_image

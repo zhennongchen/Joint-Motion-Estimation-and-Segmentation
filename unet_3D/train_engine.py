@@ -9,6 +9,42 @@ from einops import rearrange
 import torch.nn.functional as F
 import Joint_motion_seg_estimate_CMR.functions_collection as ff
 
+def customized_dice_loss1(pred, mask, num_classes, exclude_index = 10):
+    pred_softmax = F.softmax(pred,dim = 1)
+ 
+    # pred_softmax = rearrange(pred_softmax,'b c h w -> 1 c (h w b)')
+
+    dice_loss = 0.0
+
+    for cls in range(1,num_classes):
+        # Skip the excluded class
+        if cls == exclude_index:
+            continue
+
+        # Get predictions and ground truth for the current class
+        pred_cls = pred_softmax[:, cls, ...]
+        mask_cls = (mask == cls).float()  # Convert to float for multiplication
+
+        pred_cls = pred_cls.view(-1)
+        mask_cls = mask_cls.view(-1)
+
+        # Ignore the excluded slice
+        valid_mask = (mask != exclude_index)
+        valid_mask = valid_mask.view(-1)
+
+        pred_cls = pred_cls * valid_mask
+        mask_cls = mask_cls * valid_mask
+
+        # Calculate intersection and union
+        intersection = torch.sum(pred_cls * mask_cls)
+        union = torch.sum(pred_cls) + torch.sum(mask_cls)
+
+        # Compute Dice score for this class and accumulate
+        dice_score_cls = (2.0 * intersection + 1e-6) / (union + 1e-6)
+        dice_loss += dice_score_cls
+
+    return 1- (dice_loss / (num_classes - 1))  # Divide by the number of classes
+
 
 def train_loop(args, model, data_loader_train, optimizer):
 
@@ -30,52 +66,43 @@ def train_loop(args, model, data_loader_train, optimizer):
             # image
             batch_image = batch['image']
             image_input = torch.clone(batch_image).to("cuda")
-            print('image_input shape: ', image_input.shape)
+            print('in train image_input shape: ', image_input.shape)
 
             # segmentation
             batch_seg = batch['mask']
 
             optimizer.zero_grad()
             seg_pred = model(image_input)
-            print('seg_pred shape: ', seg_pred.shape, ' unique: ', torch.unique(seg_pred))
+            print('in train seg_pred shape: ', seg_pred.shape)
 
-            # CE loss
-            seg_gt_CE = rearrange(batch_seg, 'b c h w d -> (b d) c h w ').to("cuda")
-            seg_pred_CE = rearrange(seg_pred, 'b c h w d -> (b d) c h w ')
-            ce_loss = seg_criterion(seg_pred_CE,seg_gt_CE.squeeze(1).long())
+            # # CE loss
+            # seg_gt_CE = rearrange(torch.clone(batch_seg), 'b c h w d -> (b d) c h w').to("cuda")
+            # seg_pred_CE = rearrange(torch.clone(seg_pred), 'b c h w d -> (b d) c h w')
+            # print('in train seg_gt_CE ad seg_pred_CE shape: ', seg_gt_CE.shape, seg_pred_CE.shape)
+            seg_gt_CE = torch.clone(batch_seg).to("cuda")
+            print('unique seg_gt_CE: ', torch.unique(seg_gt_CE))
+            print('shape seg_gt_CE: ', seg_gt_CE.shape)
+            ce_loss = seg_criterion(seg_pred, seg_gt_CE.squeeze(0).long())
 
-            
+            # Dice loss
+            dice_loss = customized_dice_loss1(seg_pred,torch.clone(batch_seg).to("cuda").long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
+
+            # loss = args.loss_weight[0] * ce_loss + args.loss_weight[1] * dice_loss
+            loss = ce_loss
+            pred_softmax = F.softmax(seg_pred,dim = 1)
+            print('pred_softmax shape: ', pred_softmax.shape)
+            pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
+            print('pred_seg_softmax shape: ', pred_seg_softmax.shape)
+            print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax))
+
+            loss.backward()
+            optimizer.step()
 
         loss_list.append(loss.item())
-        seg_loss_list.append(seg_loss.item())
-        dice_loss_list.append(Dice_loss.item())
+        ce_loss_list.append(ce_loss.item())
+        dice_loss_list.append(dice_loss.item())
 
         if batch_idx % 30 == 0:
-            print('in this iteration loss: ', loss.item(), 'flow_loss: ', flow_loss.item(), 'seg_loss: ', seg_loss.item(), 'warp_seg_loss: ', warp_seg_loss.item(), 'Dice_loss: ', Dice_loss.item())
+            print('in this iteration loss: ', loss.item(), ' ce_loss: ', ce_loss.item(), ' dice_loss: ', dice_loss.item())
 
-    return sum(loss_list) / len(loss_list), sum(flow_loss_list) / len(flow_loss_list), sum(seg_loss_list) / len(seg_loss_list), sum(warp_seg_loss_list) / len(warp_seg_loss_list), sum(dice_loss_list) / len(dice_loss_list)
-
-# def train_loop_motion(args, model, data_loader_train, optimizer):
-#     epoch_loss = []
-#     for batch_idx, batch in enumerate(data_loader_train, 1):
-#         batch_image = rearrange(batch['image'], 'b c h w -> c b h w')
-
-#         image_target = torch.clone(batch_image)[:1,:]
-#         image_target = torch.repeat_interleave(image_target, 15, dim=0).to("cuda")
-
-#         image_source = torch.clone(batch_image).to("cuda")
-
-#         optimizer.zero_grad()
-#         net = model(image_target, image_source, image_target)
-
-#         flow_loss = flow_criterion(net['fr_st'], image_source) + 0.01 * ff.huber_loss(net['out'])
-
-#         flow_loss.backward()
-#         optimizer.step()
-            
-#         epoch_loss.append(flow_loss.item())
-
-#         if (batch_idx + 1) % 10 == 0:
-#             print('batch index: ', batch_idx + 1, 'average loss so far: ',sum(epoch_loss) / len(epoch_loss))
-
-#     return sum(epoch_loss) / len(epoch_loss)
+    return sum(loss_list) / len(loss_list), sum(ce_loss_list) / len(ce_loss_list), sum(dice_loss_list) / len(dice_loss_list)

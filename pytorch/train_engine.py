@@ -62,9 +62,13 @@ def train_loop(args, model, data_loader_train, optimizer):
             mask_for_dice = rearrange(batch['mask'], 'b c h w d -> (b c) (h w d) ').to("cuda")
 
             Dice_loss = ff.customized_dice_loss(pred_seg, mask_for_dice.long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
+
+            # pred_softmax = F.softmax(net["outs"],dim = 1)
+            # pred_seg = np.rollaxis(pred_softmax.argmax(1).detach().cpu().numpy(), 0, 3)
+            # print('unique pred_seg: ', np.unique(pred_seg))
             
 
-        loss_list.append(loss.item())
+        loss_list.append(loss.item()) 
         flow_loss_list.append(flow_loss.item())
         seg_loss_list.append(seg_loss.item())
         warp_seg_loss_list.append(warp_seg_loss.item())

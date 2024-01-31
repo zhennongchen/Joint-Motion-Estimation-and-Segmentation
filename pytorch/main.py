@@ -37,19 +37,19 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'joint_trial2'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = None
+    pretrained_model_epoch = 10
 
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
 
-    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'joint_trial1', 'models', 'model-290.pth'), help='path where to save, empty for no saving')
-    # if pretrained_model_epoch == None:
-    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
-    # else:
-    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'joint_trial1', 'models', 'model-290.pth'), help='path where to save, empty for no saving')
+    if pretrained_model_epoch == None:
+        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    else:
+        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=True)
+    parser.add_argument('--train_mode', default=False)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
@@ -91,8 +91,8 @@ def run(args):
     ff.make_folder([args.output_dir, os.path.join(args.output_dir, 'models'), os.path.join(args.output_dir, 'logs')])
 
     # Data loading code
-    train_index_list = np.arange(0,60,1)  
-    valid_index_list = np.arange(60,100,1) # just to monitor the validation loss, will not be used to select any hyperparameters
+    train_index_list = np.arange(0,2,1)  
+    valid_index_list = np.arange(0,2,1) # just to monitor the validation loss, will not be used to select any hyperparameters
     train_batch_list = None
     valid_batch_list = None
 
@@ -210,14 +210,14 @@ def run(args):
 
            for batch_idx, batch in enumerate(data_loader_pred, 1):
                 # image
-                batch_image = rearrange(batch['image'], 'b c h w -> c b h w')
+                batch_image = rearrange(batch['image'], 'b c h w d -> (b d) c h w')
                 image_target = torch.clone(batch_image)[:1,:]
                 image_target = torch.repeat_interleave(image_target, 15, dim=0).to("cuda")
 
                 image_source = torch.clone(batch_image).to("cuda")
 
                 # segmentation
-                batch_seg = rearrange(batch['mask'], 'b c h w -> c b h w')
+                batch_seg = rearrange(batch['mask'], 'b c h w d -> (b d) c h w')
                 seg_gt = torch.clone(batch_seg).to("cuda")
 
                 output = model(image_target, image_source, image_target)
