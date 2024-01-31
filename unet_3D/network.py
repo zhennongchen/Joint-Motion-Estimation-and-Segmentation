@@ -82,13 +82,8 @@ class Unet3D(nn.Module):
         self,
         init_dim = 16,
         channels = 1,
-
-        out_dim = None,
         dim_mults = (2,4,8,16),
-        self_condition = False,   # use the prediction from the previous iteration as the condition of next iteration
-        attn_dim_head = 32,
-        attn_heads = 4,
-        full_attn = (None, None, None, True),
+        num_classes = 2,
     ):
         super().__init__()
     
@@ -103,76 +98,61 @@ class Unet3D(nn.Module):
         print('in out is : ', in_out)
         # [(16,32), (32,64), (64,128), (128,256)]. Each tuple in in_out represents a pair of input and output dimensions for different stages in a neural network 
 
-
-        # attention
-
-        num_stages = len(dim_mults)
-        full_attn  = cast_tuple(full_attn, num_stages)
-        attn_heads = cast_tuple(attn_heads, num_stages)
-        attn_dim_head = cast_tuple(attn_dim_head, num_stages)
-
-        assert len(full_attn) == len(dim_mults)
-
         # layers
-
         self.downs = nn.ModuleList([])
         self.ups = nn.ModuleList([])
         num_resolutions = len(in_out) # 4
 
-        for ind, ((dim_in, dim_out), layer_full_attn, layer_attn_heads, layer_attn_dim_head) in enumerate(zip(in_out, full_attn, attn_heads, attn_dim_head)):
-            # print(' in downsampling path, ind is: ', ind, ' dim_in is: ', dim_in, ' dim_out is: ', dim_out, ' layer_full_attn is: ', layer_full_attn, ' layer_attn_heads is: ', layer_attn_heads, ' layer_attn_dim_head is: ', layer_attn_dim_head)
-            is_last = ind >= (num_resolutions - 1)
+        for ind, (dim_in, dim_out) in enumerate(in_out):
+            print(' in downsampling path, ind is: ', ind, ' dim_in is: ', dim_in, ' dim_out is: ', dim_out)
 
             # in each downsample stage, 
-            # we have a resnetblock and then downsampling layer (downsample x and y by 2, then increase the feature number by 2)
+            # we have two conv blocks and then downsampling layer (downsample x and y by 2, then increase the feature number by 2)
             self.downs.append(nn.ModuleList([
-                ResnetBlock3D(dim_in, dim_in, use_full_attention = layer_full_attn, attn_head = layer_attn_heads, attn_dim_head = layer_attn_dim_head),
-                Downsample3D(dim_in, dim_out) if not is_last else nn.Conv3d(dim_in, dim_out, 3, padding = 1)
+                ConvBlock3D(dim_in, dim_in),
+                ConvBlock3D(dim_in, dim_in),
+                Downsample3D(dim_in, dim_out ) 
             ]))
 
-        mid_dim = dims[-1]
-        self.mid_block = ResnetBlock3D(mid_dim, mid_dim, use_full_attention = True, attn_head = attn_heads[-1], attn_dim_head = attn_dim_head[-1])
 
-        for ind, ((dim_in, dim_out), layer_full_attn, layer_attn_heads, layer_attn_dim_head) in enumerate(zip(*map(reversed, (in_out, full_attn, attn_heads, attn_dim_head)))):
-            # print(' in upsampling path, ind is: ', ind, ' dim_in is: ', dim_in, ' dim_out is: ', dim_out, ' layer_full_attn is: ', layer_full_attn, ' layer_attn_heads is: ', layer_attn_heads, ' layer_attn_dim_head is: ', layer_attn_dim_head)
-            is_last = ind == (len(in_out) - 1)
+
+        for ind, (dim_in, dim_out) in enumerate(reversed(in_out)):
+            print(' in upsampling path, ind is: ', ind, ' dim_in is: ', dim_in, ' dim_out is: ', dim_out)
           
             # in each upsample stage,
             # we have a resnetblock and then upsampling layer (upsample x and y by 2, then decrease the feature number by 2)
             self.ups.append(nn.ModuleList([
-                ResnetBlock3D(dim_out + dim_in, dim_out, use_full_attention = layer_full_attn, attn_head = layer_attn_heads, attn_dim_head = layer_attn_dim_head),
-                Upsample3D(dim_out, dim_in) if not is_last else  nn.Conv3d(dim_out, dim_in, 5, padding = 2)  
+                ConvBlock3D(dim_out, dim_out) if ind == 0 else ConvBlock3D(dim_out * 2, dim_out),
+                ConvBlock3D(dim_out, dim_out),
+                Upsample3D(dim_out, dim_in)  
             ]))
 
-        self.out_dim = channels
+        self.out_dim = num_classes
 
-        self.final_res_block = ResnetBlock3D(init_dim * 2, init_dim, use_full_attention = None, attn_head = attn_heads[0], attn_dim_head = attn_dim_head[0])
+        self.final_block = ConvBlock3D(init_dim * 2, init_dim)
         self.final_conv = nn.Conv3d(init_dim, self.out_dim, 1)  # output channel is initial channel number
 
     def forward(self, x):
 
         x = self.init_conv(x)
         # print('initial x shape is: ', x.shape)
-        x_init = x.clone()
 
         h = []
-        for block, downsample in self.downs:
-            x = block(x)
+        for block1, block2, downsample in self.downs:
+            x = block1(x)
+            x = block2(x)
             h.append(x)
-
             x = downsample(x)
+      
         
-        x = self.mid_block(x)
-        
-        for block, upsample in self.ups:
-            x = torch.cat((x, h.pop()), dim = 1)   # h.pop() is the output of the corresponding downsample stage
-            x = block(x)
+        for block1, block2, upsample in self.ups:
+            x = block1(x)
+            x = block2(x)
             x = upsample(x)
+            x = torch.cat((x, h.pop()), dim = 1)
 
-        x = torch.cat((x, x_init), dim = 1)
-
-        x = self.final_res_block(x)
+        x = self.final_block(x)
         final_image = self.final_conv(x)
-        # print('final image shape is: ', final_image.shape)
+        print('final image shape is: ', final_image.shape)
       
         return final_image
