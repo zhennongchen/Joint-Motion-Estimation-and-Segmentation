@@ -44,12 +44,6 @@ def num_to_groups(num, divisor):
 
 # normalization functions
 
-def normalize_to_neg_one_to_one(img):
-    return img * 2 - 1
-
-def unnormalize_to_zero_to_one(t):
-    return (t + 1) * 0.5
-
 def Upsample3D(dim, dim_out = None, upsample_factor = (2,2,1)):
     return nn.Sequential(
         nn.Upsample(scale_factor = upsample_factor, mode = 'nearest'),
@@ -61,21 +55,9 @@ def Downsample3D(dim, dim_out = None):
         nn.MaxPool3d(kernel_size=(2,2, 1), stride=(2,2, 1), padding=0),
         nn.Conv3d(dim, default(dim_out, dim), 1)
     )
-
-
-class RMSNorm3D(nn.Module):
-    '''RMSNorm applies channel-wise normalization to the input tensor, 
-    scales the normalized values using the learnable parameter g, 
-    and then further scales the result by the square root of the number of input channels. '''
-    def __init__(self, dim):
-        super().__init__()
-        self.g = nn.Parameter(torch.ones(1, dim, 1, 1 , 1)) # learnable
-
-    def forward(self, x):
-        return F.normalize(x, dim = 1) * self.g * (x.shape[1] ** 0.5)
+   
 
 # building block modules
-
 class ConvBlock3D(nn.Module):  # input dimension is dim, output dimension is dim_out
     def __init__(self, dim, dim_out, groups = 8, dilation = None):
         super().__init__()
@@ -92,107 +74,8 @@ class ConvBlock3D(nn.Module):  # input dimension is dim, output dimension is dim
         x = self.act(x)
         return x
     
-class LinearAttention3D(nn.Module):
-    def __init__(
-        self,
-        dim,
-        heads=4,
-        dim_head=32
-    ):
-        super().__init__()
-        self.scale = dim_head ** -0.5
-        self.heads = heads
-        hidden_dim = dim_head * heads
 
-        self.norm = RMSNorm3D(dim)
-        self.to_qkv = nn.Conv3d(dim, hidden_dim * 3, 1, bias=False)
-
-        self.to_out = nn.Sequential(
-            nn.Conv3d(hidden_dim, dim, 1),
-            RMSNorm3D(dim)
-        )
-
-    def forward(self, x):
-        b, c, h, w, d = x.shape  # Added dimension 'd' for depth
-
-        x = self.norm(x)
-
-        qkv = self.to_qkv(x).chunk(3, dim=1)  # split input into q k v evenly
-        q, k, v = map(lambda t: rearrange(t, 'b (h c) x y z -> b h c (x y z)', h=self.heads), qkv)  # h = head, c = dim_head
-
-        q = q.softmax(dim=-2)
-        k = k.softmax(dim=-1)
-
-        q = q * self.scale
-
-        context = torch.einsum('b h d n, b h e n -> b h d e', k, v)  # matrix multiplication
-
-        out = torch.einsum('b h d e, b h d n -> b h e n', context, q)
-        out = rearrange(out, 'b h c (x y z) -> b (h c) x y z', h = self.heads, x = h, y = w, z = d)
-        return self.to_out(out)
-
-
-class Attention3D(nn.Module):
-    def __init__(
-        self,
-        dim,
-        heads = 4,
-        dim_head = 32,
-    ):
-        super().__init__()
-        self.heads = heads
-        hidden_dim = dim_head * heads
-
-        self.norm = RMSNorm3D(dim)
-        self.attend = Attend(flash = False)
-
-        self.to_qkv = nn.Conv3d(dim, hidden_dim * 3, 1, bias = False)
-        self.to_out = nn.Conv3d(hidden_dim, dim, 1)
-
-    def forward(self, x):
-        b, c, h, w, d = x.shape  # Added dimension 'd' for depth
-
-        x = self.norm(x) 
-
-        qkv = self.to_qkv(x).chunk(3, dim=1)  # split input into q k v evenly
-        q, k, v = map(lambda t: rearrange(t, 'b (h c) x y z-> b h (x y z) c', h = self.heads), qkv)
-
-        out = self.attend(q, k, v)
-
-        out = rearrange(out, 'b h (x y z) d -> b (h d) x y z', x = h, y = w, z = d)
-        return self.to_out(out)
-    
-
-class ResnetBlock3D(nn.Module): 
-    # conv + conv + attention + residual
-    def __init__(self, dim, dim_out, groups = 8, use_full_attention = None, attn_head = 4, attn_dim_head = 32):
-        '''usee which attention: 'Full' or 'Linear'''
-        super().__init__()
-    
-        self.block1 = ConvBlock3D(dim, dim_out, groups = groups)
-        self.block2 = ConvBlock3D(dim_out, dim_out, groups = groups)
-        
-        if use_full_attention == True:
-            self.attention = Attention3D(dim_out, heads = attn_head, dim_head = attn_dim_head)
-        elif use_full_attention == False:
-            self.attention = LinearAttention3D(dim_out, heads = attn_head, dim_head = attn_dim_head)
-        else:
-            self.attention = nn.Identity()
-
-        self.res_conv = nn.Conv3d(dim, dim_out, 1) if dim != dim_out else nn.Identity()
-
-    def forward(self, x):
-
-        h = self.block1(x) 
-
-        h = self.block2(h)
-
-        h = self.attention(h)
-
-        return h + self.res_conv(x)
-    
-
-# model: ResNet-UNet-3D-attention
+# model: UNet3D
 
 class Unet3D(nn.Module):
     def __init__(

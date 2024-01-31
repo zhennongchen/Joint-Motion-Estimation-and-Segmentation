@@ -1,186 +1,232 @@
+#!/usr/bin/env python
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
 import torch.nn as nn
 import numpy as np
 from tqdm import tqdm
+import random
 from torch.utils.data import DataLoader
-
-from network import *
-from dataset import *
-from util import *
-import time
 import scipy.io
 import os
-import matplotlib.pyplot as plt
 import pdb
+import argparse
+import pandas as pd
+from einops import rearrange
+
+from Joint_motion_seg_estimate_CMR.pytorch.network import *
+from Joint_motion_seg_estimate_CMR.data.data_CMR import *
+from Joint_motion_seg_estimate_CMR.pytorch.util import *
+from Joint_motion_seg_estimate_CMR.pytorch.train_engine import *
+from Joint_motion_seg_estimate_CMR.pytorch.validate_engine import *
+import Joint_motion_seg_estimate_CMR.Defaults as Defaults
+import Joint_motion_seg_estimate_CMR.functions_collection as ff
 
 
-def get_to_cuda(cuda):
-    def to_cuda(tensor):
-        return tensor.cuda() if cuda else tensor
-    return to_cuda
+defaults = Defaults.Parameters()
+
+def get_args_parser():
+    parser = argparse.ArgumentParser('joint', add_help=True)
+    parser.add_argument('--batch_size', default=1, type=int, help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
+
+    # Custom parser 
+    parser.add_argument('--device', default='cuda', help='device to use for training / testing')
+    parser.add_argument('--seed', default=1234, type=int)   
+    
+    
+    ########## important parameters
+    trial_name = 'joint_trial2'
+    main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
+    pretrained_model_epoch = None
+
+    parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
+    parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
 
-def convert_to_1hot(label, n_class):
-    # Convert a label map (N x 1 x H x W) into a one-hot representation (N x C x H x W)
-    label_swap = label.swapaxes(1, 3)
-    label_flat = label_swap.flatten()
-    n_data = len(label_flat)
-    label_1hot = np.zeros((n_data, n_class), dtype='int16')
-    label_1hot[range(n_data), label_flat] = 1
-    label_1hot = label_1hot.reshape((label_swap.shape[0], label_swap.shape[1], label_swap.shape[2], n_class))
-    label_1hot = label_1hot.swapaxes(1, 3)
-    return label_1hot
+    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'joint_trial1', 'models', 'model-290.pth'), help='path where to save, empty for no saving')
+    # if pretrained_model_epoch == None:
+    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    # else:
+    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+
+    parser.add_argument('--train_mode', default=True)
+    parser.add_argument('--validation', default=True)
+    parser.add_argument('--save_prediction', default=True)
+    parser.add_argument('--freeze_encoder', default = False)
+    parser.add_argument('--loss_weight', default= [1,0.01, 0.005]) # [flow_loss, seg_loss, warp_seg_loss]
+
+    if pretrained_model_epoch == None:
+        parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
+    else:
+        parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
+    parser.add_argument('--epochs', default=1000000, type=int)
+    parser.add_argument('--save_model_file_every_N_epoch', default=5, type = int) 
+    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
+    parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
+    parser.add_argument('--lr_decay_gamma', default=0.95)
+    
+    # Dataset parameters
+    parser.add_argument('--img_size', default=128, type=int)    
+    parser.add_argument('--num_classes', type=int, default=2)  ######## important!!!!
+
+    parser.add_argument('--dataset_name', default='STACOM')
+    parser.add_argument('--full_or_nonzero_slice', default='nonzero') # full means all the slices, nonzero means only the slices with manual segmentation at both ED and ES, loose means the slices with manual segmentation at either ED or ES or both
+    parser.add_argument('--turn_zero_seg_slice_into', default=10, type=int)
+    parser.add_argument('--augment_list', default=[('brightness' , None), ('contrast', None), ('sharpness', None), ('flip', None), ('rotate', [-20,20]), ('translate', [-5,5]), ('random_crop', [-5,5])], type=list)
+    parser.add_argument('--augment_frequency', default=0.5, type=float)
+
+    return parser
 
 
-def categorical_dice(prediction, truth, k):
-    # Dice overlap metric for label value k
-    A = (np.argmax(prediction, axis=1) == k)
-    B = (np.argmax(truth, axis=1) == k)
-    return 2 * np.sum(A * B) / (np.sum(A) + np.sum(B)+0.001)
+
+def run(args):
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # build some folders
+    ff.make_folder([args.output_dir, os.path.join(args.output_dir, 'models'), os.path.join(args.output_dir, 'logs')])
+
+    # Data loading code
+    train_index_list = np.arange(0,60,1)  
+    valid_index_list = np.arange(60,100,1) # just to monitor the validation loss, will not be used to select any hyperparameters
+    train_batch_list = None
+    valid_batch_list = None
+
+    dataset_train = build_data_CMR(args, args.dataset_name, 
+                    train_batch_list,  train_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
+                    shuffle = True,
+                    augment_list = args.augment_list, augment_frequency = args.augment_frequency,
+                    return_arrays_or_dictionary = 'dictionary')
+    
+    dataset_valid = build_data_CMR(args, args.dataset_name,
+                    valid_batch_list, valid_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
+                    shuffle = False,
+                    augment_list = [], augment_frequency = -0.1,
+                    return_arrays_or_dictionary = 'dictionary')
+
+    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count()) 
+    data_loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
+
+    # build model
+    model = Seg_Motion_Net(args)
 
 
-def huber_loss(x):
-    bsize, csize, height, width = x.size()
-    d_x = torch.index_select(x, 3, torch.arange(1, width).cuda()) - torch.index_select(x, 3, torch.arange(width-1).cuda())
-    d_y = torch.index_select(x, 2, torch.arange(1, height).cuda()) - torch.index_select(x, 2, torch.arange(height-1).cuda())
-    err = torch.sum(torch.mul(d_x, d_x))/height + torch.sum(torch.mul(d_y, d_y))/width
-    err /= bsize
-    tv_err = torch.sqrt(0.01+err)
-    return tv_err
+    """""""""""""""""""""""""""""""""""""""TRAINING"""""""""""""""""""""""""""""""""""""""
+    if args.train_mode == True:
+        # freeze the encoder part
+        freeze_list = ["conv_blocks"]
+        freeze_keys = []
+        if args.freeze_encoder == True:
+            for n, value in model.named_parameters():
+                if any(freeze_name in n for freeze_name in freeze_list):
+                    value.requires_grad = False
+                    freeze_keys.append(n)
+            else:
+                value.requires_grad = True
+        else:
+            for p in model.parameters():
+                p.requires_grad = True
+        print('freeze_keys: ', freeze_keys)
+        
+
+        model = model.to(device)
+        optimizer = optim.Adam(model.parameters(),lr=args.lr)
+        # load pretrained model
+        if args.pretrained_model is not None:
+            checkpoint = torch.load(args.pretrained_model)
+            model.load_state_dict(checkpoint['model'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            print('loaded pretrained model from: ', args.pretrained_model)
+        else:
+            print('new train')
 
 
-def freeze_layer(layer):
-    for param in layer.parameters():
-        param.requires_grad = False
+        # train loop
+        training_log = []
+        valid_loss = np.inf; valid_flow_loss = np.inf; valid_seg_loss = np.inf; valid_dice_loss = np.inf
+        
+        for epoch in range(args.start_epoch, args.start_epoch + args.epochs):
+            print('training epoch:', epoch)
+
+            # update learning rate
+            if epoch % args.lr_update_every_N_epoch == 0:
+                optimizer.param_groups[0]['lr'] *= args.lr_decay_gamma
+            print('learning rate now: ', optimizer.param_groups[0]['lr'])
+
+            # train
+            train_loss, train_flow_loss, train_seg_loss, train_warp_seg_loss, train_dice_loss = train_loop(args, model, data_loader_train, optimizer)
+            
+            # on_epoch_end
+            dataset_train.on_epoch_end()
+
+            print('end of epoch: ', epoch, 'average loss: ', train_loss, 'flow_loss: ', train_flow_loss, 'seg_loss: ', train_seg_loss, 'warp_seg_loss: ', train_warp_seg_loss, 'Dice_loss: ', train_dice_loss)
+            
+            # save model
+            if epoch % args.save_model_file_every_N_epoch == 0:
+                checkpoint_path = os.path.join(args.output_dir, 'models', 'model-%s.pth' % epoch)
+                to_save = {'model': model.state_dict(),
+                            'optimizer': optimizer.state_dict(),
+                            'epoch': epoch,
+                            'args': args,}
+                torch.save(to_save, checkpoint_path)
+
+            # validate
+            if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
+                valid_loss, valid_flow_loss, valid_seg_loss, valid_warp_seg_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
+                print('validation loss: ', valid_loss, 'flow_loss: ', valid_flow_loss, 'seg_loss: ', valid_seg_loss, 'warp_seg_loss: ', valid_warp_seg_loss, 'Dice_loss: ', valid_dice_loss)
+
+            # save_log
+            training_log.append([epoch, train_loss, train_flow_loss, train_seg_loss, train_warp_seg_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_flow_loss, valid_seg_loss, valid_warp_seg_loss, valid_dice_loss])
+            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_flow_loss', 'train_seg_loss', 'train_warp_seg_loss', 'train_dice_loss', 'learning_rate', 'valid_loss', 'valid_flow_loss', 'valid_seg_loss', 'valid_warp_seg_loss', 'valid_dice_loss'])
+            training_log_df.to_excel(os.path.join(args.output_dir, 'logs', 'training_log.xlsx'), index = False)
+
+    else:
+        """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
+        pred_index_list = np.arange(60,100,1)
+        pred_batch_list = None
+        
+        dataset_pred = build_data_CMR(args, args.dataset_name,
+                    pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
+                    shuffle = False,
+                    augment_list = [], augment_frequency = -0.1,
+                    return_arrays_or_dictionary = 'dictionary')
+        
+        
+        data_loader_pred = torch.utils.data.DataLoader(dataset_pred, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
 
 
-def save_flow(flow):
-    #print(flow.shape)
-    flow = flow * 96
-    X, Y = np.meshgrid(np.linspace(0, 192, 32), np.linspace(0, 192, 32))
-    plt.quiver(X, Y, -flow[5, 0, ::6, ::6], -flow[5, 1, ::6, ::6], scale_units='xy', scale=1)
-    plt.axis('off')
-    plt.savefig('./models/flow_map.png')
-    plt.close()
+        # build model
 
-lr = 1e-4
-n_class = 4
-n_worker = 4
-bs = 10
-n_epoch = 100
-
-model_save_path = './models/joint_model_tmp.pth'
-
-model = Seg_Motion_Net()
-model = model.cuda()
-# model.load_state_dict(torch.load(model_save_path), strict=False)
-optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),lr=lr)
-flow_criterion = nn.MSELoss()
-seg_criterion = nn.CrossEntropyLoss()
-Tensor = torch.cuda.FloatTensor
-
-
-def train(epoch):
-    model.train()
-    epoch_loss = []
-    LV_dice = 0
-    Myo_dice = 0
-    RV_dice = 0
-    for batch_idx, batch in tqdm(enumerate(training_data_loader, 1),
-                                 total=len(training_data_loader)):
-        x, x_pred, x_gnd = batch
-        x_c = Variable(x.type(Tensor))
-        x_predc = Variable(x_pred.type(Tensor))
-        x_gndc = Variable(x_gnd.type(torch.cuda.LongTensor))
-
-        optimizer.zero_grad()
-        net = model(x_c, x_predc, x_c)
-        flow_loss = flow_criterion(net['fr_st'], x_predc) + 0.01 * huber_loss(net['out'])
-        seg_loss = seg_criterion(net['outs_softmax'], x_gndc)
-        loss = flow_loss + 0.01 * seg_loss
-        flow_loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        seg_loss.backward()
-        optimizer.step()
-
-        epoch_loss.append(loss.item())
-        pred = net['outs_softmax'].data.cpu().numpy()
-        truth = convert_to_1hot(x_gnd[:,None].numpy(), n_class)
-        LV_dice += categorical_dice(pred, truth, 1)
-        Myo_dice += categorical_dice(pred, truth, 2)
-        RV_dice += categorical_dice(pred, truth, 3)
-        if batch_idx % 50 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(x), len(training_data_loader.dataset),
-                100. * batch_idx / len(training_data_loader), np.mean(epoch_loss)))
-            print("  Training Dice LV:\t\t{:.6f}".format(LV_dice / batch_idx))
-            print("  Training Dice Myo:\t\t{:.6f}".format(Myo_dice / batch_idx))
-            print("  Training Dice RV:\t\t{:.6f}".format(RV_dice / batch_idx))
-            # pdb.set_trace()
-            # save_flow(net['out'].data.cpu().numpy())
-            # scipy.io.savemat(os.path.join('./models/flow_test.mat'),
-            #                mdict={'flow': net['out'].data.cpu().numpy()})
-            torch.save(model.state_dict(), model_save_path)
-            print("Checkpoint saved to {}".format(model_save_path))
-
-
-def test():
-    # test the segmentation performance
-    model.eval()
-    epoch_loss = []
-    LV_dice = 0
-    Myo_dice = 0
-    RV_dice = 0
-    test_batches = 0 
-
-    for batch_idx, batch in tqdm(enumerate(testing_data_loader, 1),
-                                 total=len(testing_data_loader)):
-        x, x_gnd = batch
-        x = x.permute(1,0,2,3)
-        x_gnd = x_gnd.permute(1,0,2,3)
         with torch.no_grad():
-            x_c = Variable(x).cuda()
-            x_gndc = Variable(x_gnd[:,0]).cuda().long()
+           model = Seg_Motion_Net(args)
+           model.to(device)
+           pretrained_model = torch.load(args.pretrained_model)
+           print('loaded pretrained model from: ', args.pretrained_model)
+           model.load_state_dict(pretrained_model['model'])
 
-        net = model(x_c, x_c, x_c)
+           for batch_idx, batch in enumerate(data_loader_pred, 1):
+                # image
+                batch_image = rearrange(batch['image'], 'b c h w -> c b h w')
+                image_target = torch.clone(batch_image)[:1,:]
+                image_target = torch.repeat_interleave(image_target, 15, dim=0).to("cuda")
 
-        seg_loss = seg_criterion(net['outs_softmax'], x_gndc)
-        pred = net['outs_softmax'].data.cpu().numpy()
-        truth = convert_to_1hot(x_gnd.numpy(), n_class)
-        LV_dice += categorical_dice(pred, truth, 1)
-        Myo_dice += categorical_dice(pred, truth, 2)
-        RV_dice += categorical_dice(pred, truth, 3)
-        test_batches += 1
-        epoch_loss.append(seg_loss.item())
-        print('\nTest set: Average loss: {:.4f}\n'.format(np.mean(epoch_loss)))
-        print("  testing Dice LV:\t\t{:.6f}".format(LV_dice/test_batches))
-        print("  testing Dice Myo:\t\t{:.6f}".format(Myo_dice/test_batches))
-        print("  testing Dice RV:\t\t{:.6f}".format(RV_dice/test_batches))
+                image_source = torch.clone(batch_image).to("cuda")
 
+                # segmentation
+                batch_seg = rearrange(batch['mask'], 'b c h w -> c b h w')
+                seg_gt = torch.clone(batch_seg).to("cuda")
 
-data_path = '../test'
-train_set = TrainDataset(data_path, transform=data_augment)
+                output = model(image_target, image_source, image_target)
+            
+                pred_save(batch, output,args)
+               
 
-# loading the data
-training_data_loader = DataLoader(dataset=train_set, num_workers=n_worker,
-                                  batch_size=bs, shuffle=True)
-
-for epoch in range(0, n_epoch + 1):
-
-    print('Epoch {}'.format(epoch))
-
-    start = time.time()
-    train(epoch)
-    end = time.time()
-    print("training took {:.8f}".format(end-start))
-
-    for frame in ['ED', 'ES']:
-        test_set = TestDataset(data_path, frame)
-        testing_data_loader = DataLoader(dataset=test_set, num_workers=n_worker,
-                                         batch_size=1, shuffle=False)
-        test()
-
-
+if __name__ == '__main__':
+    args = get_args_parser()
+    args = args.parse_args()
+    print(args)
+    run(args)

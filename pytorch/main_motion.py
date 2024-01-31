@@ -1,157 +1,168 @@
+#!/usr/bin/env python
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
 import torch.nn as nn
 import numpy as np
 from tqdm import tqdm
+import random
 from torch.utils.data import DataLoader
-
-from network import *
-from dataset import *
-from util import *
-import time
 import scipy.io
 import os
-import matplotlib.pyplot as plt
 import pdb
+import argparse
+import pandas as pd
+from einops import rearrange
+
+from Joint_motion_seg_estimate_CMR.pytorch.network import *
+from Joint_motion_seg_estimate_CMR.data.data_CMR import *
+from Joint_motion_seg_estimate_CMR.pytorch.util import *
+from Joint_motion_seg_estimate_CMR.pytorch.train_engine import *
+from Joint_motion_seg_estimate_CMR.pytorch.validate_engine import *
+import Joint_motion_seg_estimate_CMR.Defaults as Defaults
+import Joint_motion_seg_estimate_CMR.functions_collection as ff
+
+defaults = Defaults.Parameters()
+
+def get_args_parser():
+    parser = argparse.ArgumentParser('joint', add_help=True)
+    parser.add_argument('--batch_size', default=1, type=int, help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
+    
+    # Optimizer parameters
+    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR', help='base learning rate: absolute_lr = base_lr * total_batch_size / 256')
+
+    
+    # Custom parser 
+    parser.add_argument('--device', default='cuda', help='device to use for training / testing')
+    parser.add_argument('--seed', default=1234, type=int)   
+    
+    
+    ########## important parameters
+    trial_name = 'joint_trial1'
+    main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
+    pretrained_model_epoch = 2
+
+    parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
+    parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
+
+    if pretrained_model_epoch == None:
+        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    else:
+        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+
+    parser.add_argument('--train_mode', default=True)
+    parser.add_argument('--validation', default=True)
+    parser.add_argument('--save_prediction', default=True)
+
+    if pretrained_model_epoch == None:
+        parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
+    else:
+        parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
+    parser.add_argument('--epochs', default=2, type=int)
+    parser.add_argument('--save_model_file_every_N_epoch', default=1, type = int) 
+    parser.add_argument('--lr_update_every_N_epoch', default=2, type = int)
+    parser.add_argument('--lr_decay_gamma', default=0.95)
+    
+    # Dataset parameters
+    parser.add_argument('--img_size', default=128, type=int)    
+    parser.add_argument('--num_classes', type=int, default=2)  ######## important!!!!
+
+    parser.add_argument('--dataset_name', default='STACOM')
+    parser.add_argument('--full_or_nonzero_slice', default='nonzero') # full means all the slices, nonzero means only the slices with manual segmentation at both ED and ES, loose means the slices with manual segmentation at either ED or ES or both
+    parser.add_argument('--turn_zero_seg_slice_into', default=10, type=int)
+    parser.add_argument('--augment_list', default=[('brightness' , None), ('contrast', None), ('sharpness', None), ('flip', None), ('rotate', [-20,20]), ('translate', [-5,5]), ('random_crop', [-5,5])], type=list)
+    parser.add_argument('--augment_frequency', default=0.5, type=float)
+
+    return parser
 
 
-def get_to_cuda(cuda):
-    def to_cuda(tensor):
-        return tensor.cuda() if cuda else tensor
-    return to_cuda
+def run(args):
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # build some folders
+    ff.make_folder([args.output_dir, os.path.join(args.output_dir, 'models'), os.path.join(args.output_dir, 'logs')])
+
+    # Data loading code
+    train_index_list = np.arange(0,2,1)  
+    valid_index_list = np.arange(0,2,1) # just to monitor the validation loss, will not be used to select any hyperparameters
+    train_batch_list = None
+    valid_batch_list = None
+
+    dataset_train = build_data_CMR(args, args.dataset_name, 
+                    train_batch_list,  train_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
+                    shuffle = True,
+                    augment_list = args.augment_list, augment_frequency = args.augment_frequency,
+                    return_arrays_or_dictionary = 'dictionary')
+    
+    valid_batch_list = build_data_CMR(args, args.dataset_name,
+                    valid_batch_list, valid_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
+                    shuffle = False,
+                    augment_list = [], augment_frequency = -0.1,
+                    return_arrays_or_dictionary = 'dictionary')
+
+    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count()) 
+    data_loader_valid = torch.utils.data.DataLoader(valid_batch_list, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
+
+    # build model
+    model = Registration_Net()
+    model = model.to(device)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),lr=args.lr)
+    # load pretrained model
+    if args.pretrained_model is not None:
+        print('loading pretrained model from: ', args.pretrained_model)
+        checkpoint = torch.load(args.pretrained_model)
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        print('loaded pretrained model from: ', args.pretrained_model)
 
 
-def convert_to_1hot(label, n_class):
-    # Convert a label map (N x 1 x H x W) into a one-hot representation (N x C x H x W)
-    label_swap = label.swapaxes(1, 3)
-    label_flat = label_swap.flatten()
-    n_data = len(label_flat)
-    label_1hot = np.zeros((n_data, n_class), dtype='int16')
-    label_1hot[range(n_data), label_flat] = 1
-    label_1hot = label_1hot.reshape((label_swap.shape[0], label_swap.shape[1], label_swap.shape[2], n_class))
-    label_1hot = label_1hot.swapaxes(1, 3)
-    return label_1hot
+    # train loop
+    training_log = []
+
+    for epoch in range(args.start_epoch, args.start_epoch + args.epochs):
+        print('training epoch:', epoch)
+
+        # update learning rate
+        if epoch % args.lr_update_every_N_epoch == 0:
+            optimizer.param_groups[0]['lr'] *= args.lr_decay_gamma
+        print('learning rate now: ', optimizer.param_groups[0]['lr'])
+
+        epoch_loss =  train_loop_motion(args, model, data_loader_train, optimizer)
+        
+        # on_epoch_end
+        dataset_train.on_epoch_end()
+
+        print('end of epoch: ', epoch, 'average loss: ', epoch_loss)
+        # save model
+        if epoch % args.save_model_file_every_N_epoch == 0:
+            checkpoint_path = os.path.join(args.output_dir, 'models', 'model-%s.pth' % epoch)
+            to_save = {'model': model.state_dict(),
+                        'optimizer': optimizer.state_dict(),
+                        'epoch': epoch,
+                        'args': args,}
+            torch.save(to_save, checkpoint_path)
+
+        # validate
+        if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
+            valid_loss = valid_loop_motion(args, model, data_loader_valid)
+            print('validation loss: ', valid_loss)
 
 
-def categorical_dice(prediction, truth, k):
-    # Dice overlap metric for label value k
-    A = (np.argmax(prediction, axis=1) == k)
-    B = (np.argmax(truth, axis=1) == k)
-    return 2 * np.sum(A * B) / (np.sum(A) + np.sum(B)+0.001)
+        # save_log
+        training_log.append([epoch, epoch_loss, optimizer.param_groups[0]['lr'], valid_loss])
+        df = pd.DataFrame(training_log, columns = ['epoch', 'loss', 'lr', 'valid_loss'])
+        df.to_excel(os.path.join(args.output_dir, 'logs', 'training_log.xlsx'))
 
 
-def huber_loss(x):
-    bsize, csize, height, width = x.size()
-    d_x = torch.index_select(x, 3, torch.arange(1, width).cuda()) - torch.index_select(x, 3, torch.arange(width-1).cuda())
-    d_y = torch.index_select(x, 2, torch.arange(1, height).cuda()) - torch.index_select(x, 2, torch.arange(height-1).cuda())
-    err = torch.sum(torch.mul(d_x, d_x))/height + torch.sum(torch.mul(d_y, d_y))/width
-    err /= bsize
-    tv_err = torch.sqrt(0.01+err)
-    return tv_err
 
+if __name__ == '__main__':
+    args = get_args_parser()
+    args = args.parse_args()
+    print(args)
+    run(args)
 
-def freeze_layer(layer):
-    for param in layer.parameters():
-        param.requires_grad = False
-
-
-def plot_grid(gridx, gridy, **kwargs):
-    """ plot deformation grid """
-    for i in range(gridx.shape[0]):
-        plt.plot(gridx[i,:], gridy[i,:], **kwargs)
-    for i in range(gridx.shape[1]):
-        plt.plot(gridx[:,i], gridy[:,i], **kwargs)
-
-
-def save_flow(x, pred, x_pred, flow):
-    #print(flow.shape)
-    x = x.data.cpu().numpy()
-    pred = pred.data.cpu().numpy()
-    x_pred = x_pred.data.cpu().numpy()
-    flow = flow.data.cpu().numpy() * 96
-    flow = flow[:,:, 60:140, 40:120]
-    X, Y = np.meshgrid(np.arange(0, 80, 2), np.arange(0, 80, 2))
-    plt.subplots(figsize=(6, 6))
-    plt.subplot(221)
-    plt.imshow(x[5, 0, 60:140, 40:120], cmap='gray')
-    plt.axis('off')
-    plt.subplot(222)
-    plt.imshow(pred[5, 0, 60:140, 40:120], cmap='gray')
-    plt.axis('off')
-    plt.subplot(223)
-    plt.imshow(x_pred[5, 0, 60:140, 40:120], cmap='gray')
-    plt.axis('off')
-    plt.subplot(224)
-    plt.imshow(x_pred[5, 0, 60:140, 40:120], cmap='gray')
-    plt.quiver(X, Y, flow[5, 0, ::2, ::2], -flow[5, 1, ::2, ::2], scale_units='xy', scale=1, color='r')
-    # plot_grid(X - flow[5, 0, ::6, ::6],
-    #           Y - flow[5, 1, ::6, ::6],
-    #           color='r', linewidth=0.5)
-    plt.axis('off')
-    plt.savefig('./models/flow_map.png')
-    plt.close()
-
-
-lr = 1e-4
-n_worker = 4
-bs = 10
-n_epoch = 100
-
-model_save_path = './models/model_flow_tmp.pth'
-
-model = Registration_Net()
-print(model)
-# model.load_state_dict(torch.load(model_save_path))
-model = model.cuda()
-optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()),lr=lr)
-flow_criterion = nn.MSELoss()
-Tensor = torch.cuda.FloatTensor
-
-
-def train(epoch): 
-    model.train()
-    epoch_loss = []
-    for batch_idx, batch in tqdm(enumerate(training_data_loader, 1),
-                                 total=len(training_data_loader)):
-        x, x_pred, x_gnd = batch
-
-        x_c = Variable(x.type(Tensor))
-        x_predc = Variable(x_pred.type(Tensor))
-
-        optimizer.zero_grad()
-        net = model(x_c, x_predc, x_c)
-        flow_loss = flow_criterion(net['fr_st'], x_predc) + 0.01 * huber_loss(net['out'])
-
-        flow_loss.backward()
-        optimizer.step()
-        epoch_loss.append(flow_loss.item())
-
-        if batch_idx % 50 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(x), len(training_data_loader.dataset),
-                100. * batch_idx / len(training_data_loader), np.mean(epoch_loss)))
-
-            save_flow(x_c, x_predc, net['fr_st'], net['out'])
-            # scipy.io.savemat(os.path.join('./models/flow_test.mat'),
-            #                mdict={'flow': net['out'].data.cpu().numpy()})
-            torch.save(model.state_dict(), model_save_path)
-            print("Checkpoint saved to {}".format(model_save_path))
-
-
-data_path = '../test'
-train_set = TrainDataset(data_path, transform=data_augment)
-
-# loading the data
-training_data_loader = DataLoader(dataset=train_set, num_workers=n_worker,
-                                  batch_size=bs, shuffle=True)
-
-
-for epoch in range(0, n_epoch + 1):
-
-    print('Epoch {}'.format(epoch))
-
-    start = time.time()
-    train(epoch)
-    end = time.time()
-    print("training took {:.8f}".format(end-start))
