@@ -14,10 +14,11 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 
-def customized_dice_loss(pred, mask, num_classes, exclude_index = 10):
-    pred_softmax = F.softmax(pred,dim = 1)
- 
-    pred_softmax = rearrange(pred_softmax,'b c h w -> 1 c (h w b)')
+def customized_dice_loss(pred, mask, num_classes, add_softmax = True, exclude_index = 10):
+    if add_softmax == True:
+        pred_softmax = F.softmax(pred,dim = 1)
+  
+    # pred_softmax = rearrange(pred_softmax,'b c h w -> 1 c (h w b)')
 
     dice_loss = 0.0
 
@@ -30,8 +31,13 @@ def customized_dice_loss(pred, mask, num_classes, exclude_index = 10):
         pred_cls = pred_softmax[:, cls, :]
         mask_cls = (mask == cls).float()  # Convert to float for multiplication
 
+        pred_cls = pred_cls.reshape(-1)
+        mask_cls = mask_cls.reshape(-1)
+
         # Ignore the excluded slice
         valid_mask = (mask != exclude_index)
+        valid_mask = valid_mask.reshape(-1)
+
         pred_cls = pred_cls * valid_mask
         mask_cls = mask_cls * valid_mask
 

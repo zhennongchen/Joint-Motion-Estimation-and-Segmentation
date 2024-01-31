@@ -14,11 +14,11 @@ import argparse
 import pandas as pd
 from einops import rearrange
 
-from Joint_motion_seg_estimate_CMR.pytorch.network import *
+from Joint_motion_seg_estimate_CMR.joint_warp.network import *
 from Joint_motion_seg_estimate_CMR.data.data_CMR import *
-from Joint_motion_seg_estimate_CMR.pytorch.util import *
-from Joint_motion_seg_estimate_CMR.pytorch.train_engine import *
-from Joint_motion_seg_estimate_CMR.pytorch.validate_engine import *
+from Joint_motion_seg_estimate_CMR.joint_warp.util import *
+from Joint_motion_seg_estimate_CMR.joint_warp.train_engine import *
+from Joint_motion_seg_estimate_CMR.joint_warp.validate_engine import *
 import Joint_motion_seg_estimate_CMR.Defaults as Defaults
 import Joint_motion_seg_estimate_CMR.functions_collection as ff
 
@@ -35,9 +35,9 @@ def get_args_parser():
     
     
     ########## important parameters
-    trial_name = 'joint_trial2'
+    trial_name = 'joint_warp_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 10
+    pretrained_model_epoch = None
 
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
@@ -49,18 +49,18 @@ def get_args_parser():
     else:
         parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=False)
+    parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
-    parser.add_argument('--loss_weight', default= [1,0.1, 0.05]) # [flow_loss, seg_loss, warp_seg_loss]
+    parser.add_argument('--loss_weight', default= [1,0,0]) # [flow_loss, seg_loss,warp_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
     else:
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
     parser.add_argument('--epochs', default=1000000, type=int)
-    parser.add_argument('--save_model_file_every_N_epoch', default=5, type = int) 
+    parser.add_argument('--save_model_file_every_N_epoch', default=1, type = int) 
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
@@ -91,8 +91,8 @@ def run(args):
     ff.make_folder([args.output_dir, os.path.join(args.output_dir, 'models'), os.path.join(args.output_dir, 'logs')])
 
     # Data loading code
-    train_index_list = np.arange(0,2,1)  
-    valid_index_list = np.arange(0,2,1) # just to monitor the validation loss, will not be used to select any hyperparameters
+    train_index_list = np.arange(0,60,1)  
+    valid_index_list = np.arange(60,80,1) # just to monitor the validation loss, will not be used to select any hyperparameters
     train_batch_list = None
     valid_batch_list = None
 
@@ -181,7 +181,7 @@ def run(args):
 
             # save_log
             training_log.append([epoch, train_loss, train_flow_loss, train_seg_loss, train_warp_seg_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_flow_loss, valid_seg_loss, valid_warp_seg_loss, valid_dice_loss])
-            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_flow_loss', 'train_seg_loss', 'train_warp_seg_loss', 'train_dice_loss', 'learning_rate', 'valid_loss', 'valid_flow_loss', 'valid_seg_loss', 'valid_warp_seg_loss', 'valid_dice_loss'])
+            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_flow_loss', 'train_seg_loss', 'train_warp_seg_loss', 'train_dice_loss', 'lr', 'valid_loss', 'valid_flow_loss', 'valid_seg_loss', 'valid_warp_seg_loss', 'valid_dice_loss'])
             training_log_df.to_excel(os.path.join(args.output_dir, 'logs', 'training_log.xlsx'), index = False)
 
     else:

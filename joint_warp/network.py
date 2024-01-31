@@ -5,6 +5,7 @@ import torch.nn.init as init
 from torch.autograd import Variable, grad
 import numpy as np
 import math
+import nibabel as nb
 
 
 def relu():
@@ -127,12 +128,15 @@ class Seg_Motion_Net(nn.Module):
         self.conv7s = conv(64,64,1,1,0)
         self.conv8s = nn.Conv2d(64,args.num_classes,1)
 
-    def forward(self, x, x_pred, x_img):
-        # x: source image; x_pred: target image; x_img: image to be segmented
+    def forward(self, x_all, x0, x_all_2):
+        # x_all: all time frames
+        # x0: time frame 0
+        # x_all_2: all time frames
+
         # motion estimation branch
         net = {}
-        net['conv0'] = x
-        net['conv0s'] = x_pred
+        net['conv0'] = x_all
+        net['conv0s'] = x0
         for i in range(5):
             net['conv%d'% (i+1)] = self.conv_blocks[i](net['conv%d'%i])
             net['conv%ds' % (i + 1)] = self.conv_blocks[i](net['conv%ds' % i])
@@ -146,11 +150,17 @@ class Seg_Motion_Net(nn.Module):
         net['comb_2'] = self.conv7(net['comb_1'])
 
         net['out'] = torch.tanh(self.conv8(net['comb_2']))
-        net['grid'] = generate_grid(x_img, net['out'])
-        net['fr_st'] = F.grid_sample(x_img, net['grid'])
+        net['grid'] = generate_grid(x_all_2, net['out'])
+        net['fr_st'] = F.grid_sample(x_all_2, net['grid']) # apply the estimated motion to all time frames --> get x0
 
         # segmentation branch
-        net['conv0ss'] = x_pred ### important!! it should be the images with all time frames
+        net['conv0ss'] = x_all ### important!! it should be the images with all time frames
+
+        # # detach to numpy and nb save
+        # a = net['conv0ss'].detach().cpu().numpy()
+        # a = a.squeeze(1)
+        # a = np.rollaxis(a, 0, 3)
+        # nb.save(nb.Nifti1Image(a, np.eye(4)), '/mnt/camca_NAS/a.nii.gz')
 
         for i in range(5):
             net['conv%dss' % (i + 1)] = self.conv_blocks[i](net['conv%dss' % i])
@@ -166,7 +176,6 @@ class Seg_Motion_Net(nn.Module):
         net['comb_1s'] = self.conv6s(net['concats'])
         net['comb_2s'] = self.conv7s(net['comb_1s'])
         net['outs'] = self.conv8s(net['comb_2s'])
-        # net['outs_softmax'] = F.softmax(net['outs'], dim=1)
         net['warped_outs'] = F.grid_sample(net['outs'], net['grid'], padding_mode='border')
 
         return net

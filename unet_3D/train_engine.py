@@ -9,42 +9,6 @@ from einops import rearrange
 import torch.nn.functional as F
 import Joint_motion_seg_estimate_CMR.functions_collection as ff
 
-def customized_dice_loss1(pred, mask, num_classes, exclude_index = 10):
-    pred_softmax = F.softmax(pred,dim = 1)
- 
-    # pred_softmax = rearrange(pred_softmax,'b c h w -> 1 c (h w b)')
-
-    dice_loss = 0.0
-
-    for cls in range(1,num_classes):
-        # Skip the excluded class
-        if cls == exclude_index:
-            continue
-
-        # Get predictions and ground truth for the current class
-        pred_cls = pred_softmax[:, cls, ...]
-        mask_cls = (mask == cls).float()  # Convert to float for multiplication
-
-        pred_cls = pred_cls.view(-1)
-        mask_cls = mask_cls.view(-1)
-
-        # Ignore the excluded slice
-        valid_mask = (mask != exclude_index)
-        valid_mask = valid_mask.view(-1)
-
-        pred_cls = pred_cls * valid_mask
-        mask_cls = mask_cls * valid_mask
-
-        # Calculate intersection and union
-        intersection = torch.sum(pred_cls * mask_cls)
-        union = torch.sum(pred_cls) + torch.sum(mask_cls)
-
-        # Compute Dice score for this class and accumulate
-        dice_score_cls = (2.0 * intersection + 1e-6) / (union + 1e-6)
-        dice_loss += dice_score_cls
-
-    return 1- (dice_loss / (num_classes - 1))  # Divide by the number of classes
-
 
 def train_loop(args, model, data_loader_train, optimizer):
 
@@ -85,7 +49,7 @@ def train_loop(args, model, data_loader_train, optimizer):
             ce_loss = seg_criterion(seg_pred, seg_gt_CE.squeeze(0).long())
 
             # Dice loss
-            dice_loss = customized_dice_loss1(seg_pred,torch.clone(batch_seg).to("cuda").long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
+            dice_loss = ff.customized_dice_loss(seg_pred,torch.clone(batch_seg).to("cuda").long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
 
             # loss = args.loss_weight[0] * ce_loss + args.loss_weight[1] * dice_loss
             loss = ce_loss
