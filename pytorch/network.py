@@ -151,11 +151,6 @@ class Seg_Motion_Net(nn.Module):
 
         # segmentation branch
         net['conv0ss'] = x_pred ### important!! it should be the images with all time frames
-        # # detach a to numpy
-        # a = torch.clone(x_pred).detach().cpu().numpy()
-        # a = np.rollaxis(a.squeeze(1), 0, 3)
-        # import nibabel as nb
-        # nb.save(nb.Nifti1Image(a, np.eye(4)), '/mnt/camca_NAS/a.nii.gz')
 
         for i in range(5):
             net['conv%dss' % (i + 1)] = self.conv_blocks[i](net['conv%dss' % i])
@@ -172,6 +167,6 @@ class Seg_Motion_Net(nn.Module):
         net['comb_2s'] = self.conv7s(net['comb_1s'])
         net['outs'] = self.conv8s(net['comb_2s'])
         # net['outs_softmax'] = F.softmax(net['outs'], dim=1)
-        # net['warped_outs'] = F.grid_sample(net['outs_softmax'], net['grid'], padding_mode='border')
+        net['warped_outs'] = F.grid_sample(net['outs'], net['grid'], padding_mode='border')
 
         return net
