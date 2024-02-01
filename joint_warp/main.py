@@ -35,9 +35,9 @@ def get_args_parser():
     
     
     ########## important parameters
-    trial_name = 'joint_warp_trial2'
+    trial_name = 'joint_warp_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 3
+    pretrained_model_epoch = 10
 
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
@@ -53,7 +53,7 @@ def get_args_parser():
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
-    parser.add_argument('--loss_weight', default= [1,0.01,0.005]) # [flow_loss, seg_loss,warp_loss]
+    parser.add_argument('--loss_weight', default= [1,0,0]) # [flow_loss, seg_loss,warp_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
@@ -64,6 +64,7 @@ def get_args_parser():
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
+    parser.add_argument('--accum_iter', default=5, type=int, help='number of batches to accumulate gradients for, effectively increasing the batch size.')
     
     # Dataset parameters
     parser.add_argument('--img_size', default=128, type=int)    

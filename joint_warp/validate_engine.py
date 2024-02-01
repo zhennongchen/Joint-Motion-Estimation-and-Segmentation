@@ -44,12 +44,18 @@ def valid_loop(args, model, data_loader_valid):
           
             ### important!! model(image_alltimeframe, image_time0, image_alltimeframe)
             net = model(image_tf_all, image_tf_0, image_tf_all)
+
+            #### calculate loss
             # flow loss (warp images from all time frames to image at time frame 0)
             flow_loss = flow_criterion(net['fr_st'], image_tf_0) + 0.01 * ff.huber_loss(net['out'])
-            # seg loss (all time frame segmentation)
-            seg_loss = seg_criterion(net['outs'],seg_gt_tf_all.squeeze(1).long())
+
+            # seg loss (all time frame segmentation), use dice loss
+            seg_loss = ff.customized_dice_loss(net['outs'], seg_gt_tf_all.long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
+            # seg_loss = seg_criterion(net['outs'],seg_gt_tf_all.squeeze(1).long())
+
             # warp seg loss (warp segs from all time frames to seg at time frame 0)
-            warp_seg_loss = seg_criterion(net['warped_outs'], seg_gt_tf_0.squeeze(1).long())
+            warp_seg_loss = ff.customized_dice_loss(net['warped_outs'], seg_gt_tf_0.long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
+            # warp_seg_loss = seg_criterion(net['warped_outs'], seg_gt_tf_0.squeeze(1).long())
            
             loss = args.loss_weight[0] * flow_loss +  args.loss_weight[1] * seg_loss + args.loss_weight[2] * warp_seg_loss
 
@@ -57,10 +63,6 @@ def valid_loop(args, model, data_loader_valid):
             pred_seg = net['outs']
             Dice_loss = ff.customized_dice_loss(pred_seg, torch.clone(batch_seg).to("cuda").long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
 
-            # pred_softmax = F.softmax(net["outs"],dim = 1)
-            # pred_seg = np.rollaxis(pred_softmax.argmax(1).detach().cpu().numpy(), 0, 3)
-            # print('unique pred_seg: ', np.unique(pred_seg))
-            
 
         loss_list.append(loss.item()) 
         flow_loss_list.append(flow_loss.item())

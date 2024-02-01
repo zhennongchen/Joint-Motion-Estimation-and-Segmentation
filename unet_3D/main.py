@@ -34,24 +34,24 @@ def get_args_parser():
     
     
     ########## important parameters
-    trial_name = 'unet3D_trial4'
+    trial_name = 'unet3D_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 35
+    pretrained_model_epoch = None
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
 
-    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet3D_trial2', 'models', 'model-start.pth'), help='path where to save, empty for no saving')
+    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet3D_trial2', 'models', 'model-70.pth'), help='path where to save, empty for no saving')
     if pretrained_model_epoch == None:
         parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
     else:
         parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=False)
+    parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
-    parser.add_argument('--loss_weight', default= [1,0.5]) # [ce_loss, dice_loss]
+    parser.add_argument('--loss_weight', default= [0,1]) # [ce_loss, dice_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
@@ -62,6 +62,7 @@ def get_args_parser():
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
+    parser.add_argument('--accum_iter', default=5, type=float)
     
     # Dataset parameters
     parser.add_argument('--img_size', default=128, type=int)    
@@ -88,7 +89,7 @@ def run(args):
     ff.make_folder([args.output_dir, os.path.join(args.output_dir, 'models'), os.path.join(args.output_dir, 'logs')])
 
     # Data loading code
-    train_index_list = np.arange(0,1,1)  
+    train_index_list = np.arange(0,60,1)  
     valid_index_list = np.arange(60,80,1) # just to monitor the validation loss, will not be used to select any hyperparameters
     train_batch_list = None
     valid_batch_list = None
@@ -174,9 +175,9 @@ def run(args):
                 torch.save(to_save, checkpoint_path)
 
             # validate
-            # if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
-            #     valid_loss, valid_ce_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
-            #     print('validation loss: ', valid_loss, 'valid ce_loss: ', valid_ce_loss, 'valid dice_loss: ', valid_dice_loss)
+            if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
+                valid_loss, valid_ce_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
+                print('validation loss: ', valid_loss, 'valid ce_loss: ', valid_ce_loss, 'valid dice_loss: ', valid_dice_loss)
 
             # save_log
             training_log.append([epoch, train_loss, train_ce_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_ce_loss, valid_dice_loss])
@@ -185,7 +186,7 @@ def run(args):
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,1,1)
+        pred_index_list = np.arange(0,2,1)
         pred_batch_list = None
         
         dataset_pred = build_data_CMR(args, args.dataset_name,

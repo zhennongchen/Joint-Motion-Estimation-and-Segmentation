@@ -16,9 +16,9 @@ import matplotlib.pylab as plt
 
 from torch.utils.data import Dataset, DataLoader
 
-import sam_cmr.Build_list_zhennong.Build_list as Build_list
-import sam_cmr.Data_processing as Data_processing
-import sam_cmr.dataset.CMR.random_aug_zhennong as random_aug
+import Joint_motion_seg_estimate_CMR.Build_list_zhennong.Build_list as Build_list
+import Joint_motion_seg_estimate_CMR.Data_processing as Data_processing
+import Joint_motion_seg_estimate_CMR.data.data.random_aug_zhennong as random_aug
 
 # load pre-saved prompt features
 base_feature = np.load('/mnt/camca_NAS/SAM_for_CMR/data/text_prompt_clip/base.npy')
@@ -154,7 +154,7 @@ class Dataset_CMR(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # print('in this geiitem, self.index_array is: ', self.index_array, ' and index is :', index)
         f,s = self.index_array[index]
-        print('index is: ', index, ' now we pick file ', f, ' and slice ', s)
+        # print('index is: ', index, ' now we pick file ', f, ' and slice ', s)
         image_filename = self.image_file_list[f]
         # print('image file is: ', image_filename, ' while current image file is: ', self.current_image_file)
         seg_filename = self.seg_file_list[f]
@@ -290,7 +290,9 @@ class Dataset_CMR(torch.utils.data.Dataset):
                 # turn the pixel value of this slice in processeed seg all into turn_zero_seg_slice_into
                 if self.turn_zero_seg_slice_into is not None:
                     processed_seg[:,:,tf] = self.turn_zero_seg_slice_into
-        # print('annotation_frame_list is: ', annotation_frame_list)
+        # if len(annotation_frame_list) != 15:
+        #     print('index is: ', index, ' now we pick file ', f, ' and slice ', s)
+        #     print('annotation_frame_list is: ', annotation_frame_list)
         # print('unique value in processed seg: ', np.unique(processed_seg))
             
             

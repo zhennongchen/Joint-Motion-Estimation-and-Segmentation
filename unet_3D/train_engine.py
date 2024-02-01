@@ -26,8 +26,11 @@ def train_loop(args, model, data_loader_train, optimizer):
     dice_loss_list = []
 
     for batch_idx, batch in enumerate(data_loader_train, 1):
+
         with torch.cuda.amp.autocast():
-            optimizer.zero_grad()
+
+            if batch_idx == 1 or batch_idx % args.accum_iter == 0 or batch_idx == len(data_loader_train) or batch_idx == len(data_loader_train) - 1:
+                optimizer.zero_grad()
             
             # image
             batch_image = batch['image']
@@ -49,7 +52,12 @@ def train_loop(args, model, data_loader_train, optimizer):
 
             loss = args.loss_weight[0] * ce_loss + args.loss_weight[1] * dice_loss
 
-            if batch_idx % 1 == 0:
+            if batch_idx == 1 or batch_idx % args.accum_iter == 0 or batch_idx == len(data_loader_train) or batch_idx == len(data_loader_train) - 1:
+                loss.backward()
+                optimizer.step()
+
+
+            if batch_idx % 30 == 0:
                 print('in this iteration loss: ', np.round(loss.item(),3), ' ce_loss: ', np.round(ce_loss.item(),3), ' dice_loss: ', np.round(dice_loss.item(),3))
         
                 pred_softmax = F.softmax(seg_pred,dim = 1)
@@ -58,9 +66,7 @@ def train_loop(args, model, data_loader_train, optimizer):
                 # print('pred_seg_softmax shape: ', pred_seg_softmax.shape)
                 print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique in seg_gt_CE: ', torch.unique(seg_gt_CE))
 
-            loss.backward()
-            optimizer.step()
-
+            
         loss_list.append(loss.item())
         ce_loss_list.append(ce_loss.item())
         dice_loss_list.append(dice_loss.item())

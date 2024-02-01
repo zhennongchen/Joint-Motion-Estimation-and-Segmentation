@@ -53,7 +53,7 @@ def get_args_parser():
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
-    parser.add_argument('--loss_weight', default= [1,1]) # [flow_loss, seg_loss]
+    parser.add_argument('--loss_weight', default= [1,1,0.5]) # [flow_loss, seg_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
@@ -158,12 +158,12 @@ def run(args):
             print('learning rate now: ', optimizer.param_groups[0]['lr'])
 
             # train
-            train_loss, train_flow_loss, train_seg_loss,  train_dice_loss = train_loop(args, model, data_loader_train, optimizer)
+            train_loss, train_flow_loss, train_seg_loss,  train_warp_seg_loss, train_dice_loss = train_loop(args, model, data_loader_train, optimizer)
             
             # on_epoch_end
             dataset_train.on_epoch_end()
 
-            print('end of epoch: ', epoch, 'average loss: ', train_loss, 'flow_loss: ', train_flow_loss, 'seg_loss: ', train_seg_loss,  'Dice_loss: ', train_dice_loss)
+            print('end of epoch: ', epoch, 'average loss: ', train_loss, 'flow_loss: ', train_flow_loss, 'seg_loss: ', train_seg_loss, 'warp_seg_loss: ', train_warp_seg_loss, 'Dice_loss: ', train_dice_loss)
             
             # save model
             if epoch % args.save_model_file_every_N_epoch == 0:
@@ -176,12 +176,12 @@ def run(args):
 
             # validate
             if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
-                valid_loss, valid_flow_loss, valid_seg_loss,  valid_dice_loss = valid_loop(args, model, data_loader_valid)
+                valid_loss, valid_flow_loss, valid_seg_loss,  valid_warp_seg_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
                 print('validation loss: ', valid_loss, 'flow_loss: ', valid_flow_loss, 'seg_loss: ', valid_seg_loss, 'Dice_loss: ', valid_dice_loss)
 
             # save_log
-            training_log.append([epoch, train_loss, train_flow_loss, train_seg_loss,  train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_flow_loss, valid_seg_loss, valid_dice_loss])
-            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_flow_loss', 'train_seg_loss','train_dice_loss', 'learning_rate', 'valid_loss', 'valid_flow_loss', 'valid_seg_loss', 'valid_dice_loss'])
+            training_log.append([epoch, train_loss, train_flow_loss, train_seg_loss,  train_warp_seg_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_flow_loss, valid_seg_loss, valid_dice_loss])
+            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_flow_loss', 'train_seg_loss',  'train_warp_seg_loss', 'train_dice_loss', 'learning_rate', 'valid_loss', 'valid_flow_loss', 'valid_seg_loss', 'valid_dice_loss'])
             training_log_df.to_excel(os.path.join(args.output_dir, 'logs', 'training_log.xlsx'), index = False)
 
     else:
