@@ -37,7 +37,7 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'joint_warp_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 45
+    pretrained_model_epoch = 50
 
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
@@ -60,7 +60,7 @@ def get_args_parser():
     else:
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
     parser.add_argument('--epochs', default=1000000, type=int)
-    parser.add_argument('--save_model_file_every_N_epoch', default=5, type = int) 
+    parser.add_argument('--save_model_file_every_N_epoch', default=1, type = int) 
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
@@ -177,7 +177,7 @@ def run(args):
 
             # validate
             if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
-                valid_loss, valid_flow_loss, valid_seg_dice_loss, valid_seg_ce_loss, valid_warp_seg_dice_loss, valid_warp_seg_ce_loss = valid_loop_motion(args, model, data_loader_valid)
+                valid_loss, valid_flow_loss, valid_seg_dice_loss, valid_seg_ce_loss, valid_warp_seg_dice_loss, valid_warp_seg_ce_loss = valid_loop(args, model, data_loader_valid)
                 print('end of epoch: ', epoch, 'valid_loss: ', np.round(valid_loss,3), 'valid_flow_loss: ', np.round(valid_flow_loss,3), 'valid_seg_dice_loss: ', np.round(valid_seg_dice_loss,3), 'valid_seg_ce_loss: ', np.round(valid_seg_ce_loss,3), 'valid_warp_seg_dice_loss: ', np.round(valid_warp_seg_dice_loss,3), 'valid_warp_seg_ce_loss: ', np.round(valid_warp_seg_ce_loss,3))
                 
 
