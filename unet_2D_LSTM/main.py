@@ -176,9 +176,9 @@ def run(args):
                 torch.save(to_save, checkpoint_path)
 
             # validate
-            # if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
-            #     valid_loss, valid_ce_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
-            #     print('validation loss: ', valid_loss, 'valid ce_loss: ', valid_ce_loss, 'valid dice_loss: ', valid_dice_loss)
+            if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
+                valid_loss, valid_ce_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
+                print('validation loss: ', valid_loss, 'valid ce_loss: ', valid_ce_loss, 'valid dice_loss: ', valid_dice_loss)
 
             # save_log
             training_log.append([epoch, train_loss, train_ce_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_ce_loss, valid_dice_loss])
