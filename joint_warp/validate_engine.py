@@ -67,9 +67,7 @@ def valid_loop(args, model, data_loader_valid):
         seg_loss_list.append(seg_loss.item())
         warp_seg_loss_list.append(warp_seg_loss.item())
         dice_loss_list.append(Dice_loss.item())
-
-        if batch_idx % 10 == 0:
-            print('in this iteration loss: ', loss.item(), 'flow_loss: ', flow_loss.item(), 'seg_loss: ', seg_loss.item(), 'warp_seg_loss: ', warp_seg_loss.item(), 'Dice_loss: ', Dice_loss.item())
+        torch.cuda.synchronize()
 
     return sum(loss_list) / len(loss_list), sum(flow_loss_list) / len(flow_loss_list), sum(seg_loss_list) / len(seg_loss_list),  sum(warp_seg_loss_list) / len(warp_seg_loss_list), sum(dice_loss_list) / len(dice_loss_list)
 

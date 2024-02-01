@@ -16,8 +16,14 @@ import matplotlib.pylab as plt
 
 from torch.utils.data import Dataset, DataLoader
 
-import Joint_motion_seg_estimate_CMR.Data_processing as Data_processing
-import Joint_motion_seg_estimate_CMR.data.data.random_aug_zhennong as random_aug
+import sam_cmr.Build_list_zhennong.Build_list as Build_list
+import sam_cmr.Data_processing as Data_processing
+import sam_cmr.dataset.CMR.random_aug_zhennong as random_aug
+
+# load pre-saved prompt features
+base_feature = np.load('/mnt/camca_NAS/SAM_for_CMR/data/text_prompt_clip/base.npy')
+mid_feature = np.load('/mnt/camca_NAS/SAM_for_CMR/data/text_prompt_clip/mid.npy')
+apex_feature = np.load('/mnt/camca_NAS/SAM_for_CMR/data/text_prompt_clip/apex.npy')
 
 # main function:
 class Dataset_CMR(torch.utils.data.Dataset):
@@ -39,7 +45,7 @@ class Dataset_CMR(torch.utils.data.Dataset):
             image_shape = None, # [x,y], channel =  tf always 15 
             shuffle = None,
             image_normalization = None,
-            augment_list = [('brightness' , None),  ('contrast', None), ('sharpness', None), ('flip', None), ('rotate', [-90,90]), ('translate', [-10,10]), ('random_crop', [-5,5])], # a list of augmentation methods and their range: v range = None for brightness, contrast, sharpness
+            augment_list = [('brightness' , None),  ('contrast', None), ('sharpness', None), ('flip', None), ('rotate', [-90,90]), ('translate', [-10,10])], # a list of augmentation methods and their range: v range = None for brightness, contrast, sharpness
             augment_frequency = 0.3, # how often do we do augmentation
 
             sample_more_base = 0,
@@ -148,7 +154,7 @@ class Dataset_CMR(torch.utils.data.Dataset):
     def __getitem__(self, index):
         # print('in this geiitem, self.index_array is: ', self.index_array, ' and index is :', index)
         f,s = self.index_array[index]
-        # print('index is: ', index, ' now we pick file ', f, ' and slice ', s)
+        print('index is: ', index, ' now we pick file ', f, ' and slice ', s)
         image_filename = self.image_file_list[f]
         # print('image file is: ', image_filename, ' while current image file is: ', self.current_image_file)
         seg_filename = self.seg_file_list[f]
@@ -204,7 +210,6 @@ class Dataset_CMR(torch.utils.data.Dataset):
             elif s == 20000:
                 # randomly sampled from [-3,-2]
                 s = np.random.randint(-3,-1)
-            # print('randomly sampled slice index is: ', s)
        
         original_image = np.copy(self.current_image_data)[:,:,s,:] # now it's a 3D array [x, y, tf]
         original_seg = np.copy(self.current_seg_data)[:,:,s,:]
@@ -290,8 +295,9 @@ class Dataset_CMR(torch.utils.data.Dataset):
             
             
         # now it's time to turn numpy into tensor and collect as a dictionary (this is the final return)
-        # processed_image_torch = torch.from_numpy(np.rollaxis(processed_image, 2, 0)).float()
-        processed_image_torch = torch.from_numpy(processed_image).unsqueeze(0).float() 
+     
+       # processed_image_torch = torch.from_numpy(np.rollaxis(processed_image, 2, 0)).float()
+        processed_image_torch = torch.from_numpy(processed_image).unsqueeze(0).float()
         # processed_seg_torch = torch.from_numpy(np.rollaxis(processed_seg, 2, 0))  ####### should I turn segmentation to float as well @ sekeun
         processed_seg_torch = torch.from_numpy(processed_seg).unsqueeze(0)  
 
@@ -303,9 +309,35 @@ class Dataset_CMR(torch.utils.data.Dataset):
         # original_seg_torch = torch.from_numpy(np.rollaxis(original_seg, 2, 0))
         original_seg_torch = torch.from_numpy(original_seg).unsqueeze(0).float()
 
+        # find out it's base, mid or apex
+        total_slice_num = self.total_slice_num_list[f]
+        segment_length = total_slice_num // 3
+        middle_segment_extra = total_slice_num % 3
+        arr = np.arange(0,total_slice_num)
+
+        base_segment = arr[:segment_length]
+        mid_segment = arr[segment_length:2 * segment_length + middle_segment_extra]
+        apex_segment = arr[2 * segment_length + middle_segment_extra:]
+
+        if s in base_segment:
+            slice_type = "base"
+            prompt_feature = base_feature
+        elif s in mid_segment:
+            slice_type = "mid"
+            prompt_feature = mid_feature
+        elif s in apex_segment:
+            slice_type = "apex"
+            prompt_feature = apex_feature
+        elif s < 0:
+            slice_type = "apex"
+            prompt_feature = apex_feature
+        prompt_feature = np.squeeze(prompt_feature)
+        # print('slice index', s, 'slice type is: ', slice_type)
+          
         # also add infos from patient list spread sheet
         patient_id = os.path.basename(os.path.dirname(image_filename))
         row = self.patient_list_spreadsheet.loc[self.patient_list_spreadsheet['patient_id'] == patient_id]
+
        
         final_dictionary = { "image": processed_image_torch, "mask": processed_seg_torch, 
                 "original_image": original_image_torch,  "original_seg": original_seg_torch,
@@ -314,6 +346,8 @@ class Dataset_CMR(torch.utils.data.Dataset):
                 "original_shape" : self.original_shape,
                 "centroid": self.centroid,
                 'slice_index': s,
+                'slice_type' : slice_type,
+                'text_prompt_feature': prompt_feature,
                 # copy infos from patient list spreadsheet
                 "patient_id": row.iloc[0]['patient_id'],
                 "patient_group": row.iloc[0]['patient_group'],
