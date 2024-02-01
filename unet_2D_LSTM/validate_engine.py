@@ -28,13 +28,11 @@ def valid_loop(args, model, data_loader_valid):
             # image
             batch_image = rearrange(batch['image'], 'b c h w d -> (b d) c h w')
             image_input = torch.clone(batch_image).to(torch.float16).to("cuda")
-            print('in train image_input shape: ', image_input.shape)
 
             # segmentation
             batch_seg = rearrange(batch['mask'], 'b c h w d -> (b d) c h w')
 
             seg_pred = model(image_input)
-            print('in train seg_pred shape: ', seg_pred.shape)
 
             # CE loss
             seg_gt_CE = torch.clone(batch_seg).to("cuda")
@@ -58,7 +56,7 @@ def valid_loop(args, model, data_loader_valid):
 def pred_save(batch, output,args):
 
     pred_softmax = F.softmax(output,dim = 1)
-    pred_seg = pred_softmax.argmax(1).detach().cpu().numpy().squeeze()
+    pred_seg = np.rollaxis(pred_softmax.argmax(1).detach().cpu().numpy(), 0, 3)
                         
 
     original_shape = np.array([x.item() for x in batch["original_shape"]])

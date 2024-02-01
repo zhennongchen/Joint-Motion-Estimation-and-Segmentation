@@ -14,11 +14,11 @@ import argparse
 import pandas as pd
 from einops import rearrange
 
-from Joint_motion_seg_estimate_CMR.joint_warp.network import *
+from Joint_motion_seg_estimate_CMR.unet_2D_LSTM.network import *
 from Joint_motion_seg_estimate_CMR.data.data_CMR import *
 from Joint_motion_seg_estimate_CMR.joint_warp.util import *
-from Joint_motion_seg_estimate_CMR.joint_warp.train_engine import *
-from Joint_motion_seg_estimate_CMR.joint_warp.validate_engine import *
+from Joint_motion_seg_estimate_CMR.unet_2D_LSTM.train_engine import *
+from Joint_motion_seg_estimate_CMR.unet_2D_LSTM.validate_engine import *
 import Joint_motion_seg_estimate_CMR.Defaults as Defaults
 import Joint_motion_seg_estimate_CMR.functions_collection as ff
 
@@ -35,15 +35,14 @@ def get_args_parser():
     
     
     ########## important parameters
-    trial_name = 'joint_warp_trial2'
+    trial_name = 'unet2D_LSTM_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 3
-
+    pretrained_model_epoch = None
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
 
-    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'joint_warp_trial1', 'models', 'model-10.pth'), help='path where to save, empty for no saving')
+    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet3D_trial2', 'models', 'model-70.pth'), help='path where to save, empty for no saving')
     if pretrained_model_epoch == None:
         parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
     else:
@@ -52,18 +51,19 @@ def get_args_parser():
     parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
-    parser.add_argument('--freeze_encoder', default = False)
-    parser.add_argument('--loss_weight', default= [1,0.01,0.005]) # [flow_loss, seg_loss,warp_loss]
+    parser.add_argument('--freeze_encoder', default = False) 
+    parser.add_argument('--loss_weight', default= [1,0.5]) # [ce_loss, dice_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
     else:
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
-    parser.add_argument('--epochs', default=1000000, type=int)
+    parser.add_argument('--epochs', default=2000000, type=int)
     parser.add_argument('--save_model_file_every_N_epoch', default=5, type = int) 
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
+    parser.add_argument('--accum_iter', default = 5, type=float)
     
     # Dataset parameters
     parser.add_argument('--img_size', default=128, type=int)    
@@ -76,7 +76,6 @@ def get_args_parser():
     parser.add_argument('--augment_frequency', default=0.5, type=float)
 
     return parser
-
 
 
 def run(args):
@@ -112,8 +111,10 @@ def run(args):
     data_loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
 
     # build model
-    model = Seg_Motion_Net(args)
-
+    model = Unet2D_LSTM(init_dim = 16,
+        channels = 1,
+        dim_mults = (2,4,8,16),
+        num_classes = args.num_classes)
 
     """""""""""""""""""""""""""""""""""""""TRAINING"""""""""""""""""""""""""""""""""""""""
     if args.train_mode == True:
@@ -147,7 +148,7 @@ def run(args):
 
         # train loop
         training_log = []
-        valid_loss = np.inf; valid_flow_loss = np.inf; valid_seg_loss = np.inf; valid_warp_seg_loss = np.inf; valid_dice_loss = np.inf
+        valid_loss = np.inf; valid_ce_loss = np.inf; valid_dice_loss = np.inf
         
         for epoch in range(args.start_epoch, args.start_epoch + args.epochs):
             print('training epoch:', epoch)
@@ -158,13 +159,13 @@ def run(args):
             print('learning rate now: ', optimizer.param_groups[0]['lr'])
 
             # train
-            train_loss, train_flow_loss, train_seg_loss, train_warp_seg_loss, train_dice_loss = train_loop(args, model, data_loader_train, optimizer)
+            train_loss,  train_ce_loss, train_dice_loss = train_loop(args, model, data_loader_train, optimizer)
             
             # on_epoch_end
             dataset_train.on_epoch_end()
 
-            print('end of epoch: ', epoch, 'average loss: ', train_loss, 'flow_loss: ', train_flow_loss, 'seg_loss: ', train_seg_loss, 'warp_seg_loss: ', train_warp_seg_loss, 'Dice_loss: ', train_dice_loss)
-            
+            print('end of epoch: ', epoch, 'average loss: ', train_loss, 'ce_loss: ', train_ce_loss, 'dice_loss: ', train_dice_loss)
+
             # save model
             if epoch % args.save_model_file_every_N_epoch == 0:
                 checkpoint_path = os.path.join(args.output_dir, 'models', 'model-%s.pth' % epoch)
@@ -175,18 +176,18 @@ def run(args):
                 torch.save(to_save, checkpoint_path)
 
             # validate
-            if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
-                valid_loss, valid_flow_loss, valid_seg_loss, valid_warp_seg_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
-                print('validation loss: ', valid_loss, 'flow_loss: ', valid_flow_loss, 'seg_loss: ', valid_seg_loss, 'warp_seg_loss: ', valid_warp_seg_loss, 'Dice_loss: ', valid_dice_loss)
+            # if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
+            #     valid_loss, valid_ce_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
+            #     print('validation loss: ', valid_loss, 'valid ce_loss: ', valid_ce_loss, 'valid dice_loss: ', valid_dice_loss)
 
             # save_log
-            training_log.append([epoch, train_loss, train_flow_loss, train_seg_loss, train_warp_seg_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_flow_loss, valid_seg_loss, valid_warp_seg_loss, valid_dice_loss])
-            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_flow_loss', 'train_seg_loss', 'train_warp_seg_loss', 'train_dice_loss', 'lr', 'valid_loss', 'valid_flow_loss', 'valid_seg_loss', 'valid_warp_seg_loss', 'valid_dice_loss'])
+            training_log.append([epoch, train_loss, train_ce_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_ce_loss, valid_dice_loss])
+            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_ce_loss', 'train_dice_loss', 'lr', 'valid_loss', 'valid_ce_loss', 'valid_dice_loss'])
             training_log_df.to_excel(os.path.join(args.output_dir, 'logs', 'training_log.xlsx'), index = False)
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,2,1)
+        pred_index_list = np.arange(0,1,1)
         pred_batch_list = None
         
         dataset_pred = build_data_CMR(args, args.dataset_name,
@@ -202,30 +203,22 @@ def run(args):
         # build model
 
         with torch.no_grad():
-           model = Seg_Motion_Net(args)
-           model.to(device)
-           pretrained_model = torch.load(args.pretrained_model)
-           print('loaded pretrained model from: ', args.pretrained_model)
-           model.load_state_dict(pretrained_model['model'])
-
-           for batch_idx, batch in enumerate(data_loader_pred, 1):
-                
-                batch_image = rearrange(batch['image'], 'b c h w d -> (b d) c h w')
-                image_tf_0 = torch.clone(batch_image)[:1,:]
-                image_tf_0 = torch.repeat_interleave(image_tf_0, 15, dim=0).to("cuda")
-
-                image_tf_all = torch.clone(batch_image).to("cuda")
-
-                # segmentation
-                batch_seg = rearrange(batch['mask'], 'b c h w d -> (b d) c h w ')
-                seg_gt_tf_all = torch.clone(batch_seg).to("cuda")
-
-                seg_gt_tf_0 = torch.clone(batch_seg)[:1,:]
-                seg_gt_tf_0 = torch.repeat_interleave(seg_gt_tf_0, 15, dim=0).to("cuda") 
+            model = Unet2D_LSTM(init_dim = 16,
+            channels = 1,
+            dim_mults = (2,4,8,16),
+            num_classes = args.num_classes)
             
-                ### important!! model(image_alltimeframe, image_time0, image_alltimeframe)
-                output = model(image_tf_all, image_tf_0, image_tf_all)
+            model.to(device)
+            pretrained_model = torch.load(args.pretrained_model)
+            print('loaded pretrained model from: ', args.pretrained_model)
+            model.load_state_dict(pretrained_model['model'])
 
+            for batch_idx, batch in enumerate(data_loader_pred, 1):
+                # image
+                batch_image = rearrange(batch['image'], 'b c h w d -> (b d) c h w')
+                image_input = torch.clone(batch_image).to("cuda")
+
+                output =  model(image_input)
             
                 pred_save(batch, output,args)
                

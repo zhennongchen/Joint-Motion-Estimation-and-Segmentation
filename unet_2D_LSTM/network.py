@@ -77,12 +77,12 @@ class ConvLSTMCell(nn.Module):
 
 # model: UNet2D
 
-class Unet2D(nn.Module):
+class Unet2D_LSTM(nn.Module):
     def __init__(
         self,
-        init_dim = 32,
+        init_dim = 16,
         channels = 1,
-        dim_mults = (2,4,8),
+        dim_mults = (2,4,8,16),
         num_classes = 2,
     ):
         super().__init__()
@@ -117,9 +117,9 @@ class Unet2D(nn.Module):
 
         self.mid_conv = ConvBlock2D(dims[-1], dims[-1])
 
-        self.mid_convLSTM = ConvLSTMCell(dims[-1], dims[-2], 3)
+        self.mid_convLSTM = ConvLSTMCell(dims[-1], dims[-1], 3)
 
-        self.mid_conv2 = ConvBlock2D(dims[-2], dims[-1])
+        # self.mid_conv2 = ConvBlock2D(dims[-2], dims[-1])
 
         for ind, (dim_in, dim_out) in enumerate(reversed(in_out)):
             print(' in upsampling path, ind is: ', ind, ' dim_in is: ', dim_in, ' dim_out is: ', dim_out)
@@ -147,7 +147,7 @@ class Unet2D(nn.Module):
             x = downsample(x)
 
         x = self.mid_conv(x)
-        print('x shape before LSTM is: ', x.shape)
+        # print('x shape before LSTM is: ', x.shape)
         
         # convLSTM
         # Assuming x is of shape [15, 256, 16, 16] where 15 is the sequence_length
@@ -163,9 +163,9 @@ class Unet2D(nn.Module):
         # Reconstruct the tensor from the output sequence
         x = torch.stack(output_sequence)
 
-        print('x shape after convLSTM is: ', x.shape)
+        # print('x shape after convLSTM is: ', x.shape)
 
-        x = self.mid_conv2(x)
+        # x = self.mid_conv2(x)
 
         for upsample, block1, block2 in self.ups:
             x = upsample(x)
@@ -175,7 +175,7 @@ class Unet2D(nn.Module):
 
         final_segmentation = self.final_block(x)
 
-        print('final_segmentation shape is: ', final_segmentation.shape)
+        # print('final_segmentation shape is: ', final_segmentation.shape)
       
         return final_segmentation
 
