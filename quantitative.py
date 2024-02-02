@@ -33,8 +33,8 @@ patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/STACOM_Pat
 index_list = np.arange(60,100,1)
 patient_id_list,_,_,_ ,_,_,_ ,_ ,_, _ ,_, _ = Build_list.__build__(patient_list_file, batch_list = None, index_list = index_list)
 
-main_folder = os.path.join(defaults.sam_dir, 'models/joint_trial1/predicts')
-epoch = 290
+main_folder = os.path.join(defaults.sam_dir, 'models/STACOM_trial1/predicts')
+epoch = 471
 
 # slice inclusion in the calculation
 if dataset == 'STACOM':
@@ -55,14 +55,7 @@ for i in range(0,len(patient_id_list)):
     arr = np.arange(0, len(gt_files))
 
     # Calculate the lengths of the segments
-    # Ensuring the middle segment has the most elements if the array can't be equally divided
-    segment_length = len(gt_files) // 3
-    middle_segment_extra = len(gt_files) % 3
-
-    # Create the segments
-    base_segment = arr[:segment_length]
-    mid_segment = arr[segment_length:2 * segment_length + middle_segment_extra]
-    apex_segment = arr[2 * segment_length + middle_segment_extra:]
+    base_segment, mid_segment, apex_segment = ff.define_three_segments(len(gt_files))
     print(base_segment, mid_segment, apex_segment)
 
     # which slices should be included or excluded
@@ -83,11 +76,11 @@ for i in range(0,len(patient_id_list)):
 
     base_dice = []; mid_dice = []; apex_dice = []; all_dice = []
 
-    for slice_num in np.arange(1, len(gt_files) - 1):
+    for slice_num in np.arange(0, len(gt_files) - 1):
         # print('slice_num: ', slice_num)
         # for STACOM
         if dataset == 'STACOM':
-            if slice_num in exclude_slice or slice_num < start_slice or slice_num > end_slice:
+            if slice_num in exclude_slice or slice_num < start_slice - 1 or slice_num > end_slice:
                 # print('slice excluded')
                 continue
         

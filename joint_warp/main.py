@@ -37,7 +37,7 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'joint_warp_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 50
+    pretrained_model_epoch = 145
 
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
@@ -53,14 +53,14 @@ def get_args_parser():
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
-    parser.add_argument('--loss_weight', default= [1,0.05, 0.1, 0.01, 0.03], type=list) # flow_loss, seg_dice_loss, seg_ce_loss, warp_seg_dice_loss, warp_seg_ce_loss
+    parser.add_argument('--loss_weight', default= [1,0.05, 0.1, 0,0], type=list) # flow_loss, seg_dice_loss, seg_ce_loss, warp_seg_dice_loss, warp_seg_ce_loss
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
     else:
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
     parser.add_argument('--epochs', default=1000000, type=int)
-    parser.add_argument('--save_model_file_every_N_epoch', default=1, type = int) 
+    parser.add_argument('--save_model_file_every_N_epoch', default=5, type = int) 
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)

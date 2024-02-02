@@ -34,18 +34,18 @@ def get_args_parser():
     
     
     ########## important parameters
-    trial_name = 'unet3D_trial1'
+    trial_name = 'unet3D_alldata'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
     pretrained_model_epoch = None
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
 
-    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet3D_trial2', 'models', 'model-70.pth'), help='path where to save, empty for no saving')
-    if pretrained_model_epoch == None:
-        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
-    else:
-        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet3D_trial1', 'models', 'model-200.pth'), help='path where to save, empty for no saving')
+    # if pretrained_model_epoch == None:
+    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    # else:
+    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
     parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
@@ -62,7 +62,7 @@ def get_args_parser():
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
-    parser.add_argument('--accum_iter', default=5, type=float)
+    parser.add_argument('--accum_iter', default=1, type=float)
     
     # Dataset parameters
     parser.add_argument('--img_size', default=128, type=int)    
@@ -89,8 +89,8 @@ def run(args):
     ff.make_folder([args.output_dir, os.path.join(args.output_dir, 'models'), os.path.join(args.output_dir, 'logs')])
 
     # Data loading code
-    train_index_list = np.arange(0,60,1)  
-    valid_index_list = np.arange(60,80,1) # just to monitor the validation loss, will not be used to select any hyperparameters
+    train_index_list = np.arange(0,100,1)  
+    valid_index_list = np.arange(0,25,1) # just to monitor the validation loss, will not be used to select any hyperparameters
     train_batch_list = None
     valid_batch_list = None
 
@@ -100,7 +100,7 @@ def run(args):
                     augment_list = args.augment_list, augment_frequency = args.augment_frequency,
                     return_arrays_or_dictionary = 'dictionary')
     
-    dataset_valid = build_data_CMR(args, args.dataset_name,
+    dataset_valid = build_data_CMR(args, 'ACDC',
                     valid_batch_list, valid_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = False,
                     augment_list = [], augment_frequency = -0.1,
@@ -186,7 +186,7 @@ def run(args):
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,2,1)
+        pred_index_list = np.arange(0,1,1)
         pred_batch_list = None
         
         dataset_pred = build_data_CMR(args, args.dataset_name,
