@@ -43,9 +43,9 @@ def valid_loop(args, model, data_loader_valid):
             seg_loss = seg_criterion(net['outs'],seg_gt.squeeze(1).long())
 
             # warp seg loss 
-            seg_time0 = torch.clone(batch_seg)[:1,:]
-            seg_time0 = torch.repeat_interleave(seg_time0, 15, dim=0).to("cuda") 
-            warp_seg_time0 = F.grid_sample(seg_time0, net['grid'], padding_mode='border')
+            # seg_time0 = torch.clone(batch_seg)[:1,:]
+            # seg_time0 = torch.repeat_interleave(seg_time0, 15, dim=0).to("cuda") 
+            # warp_seg_time0 = F.grid_sample(seg_time0, net['grid'], padding_mode='border')
 
             # warp_seg_loss = seg_criterion(warp_seg_time0, seg_gt.squeeze(1).long())
 

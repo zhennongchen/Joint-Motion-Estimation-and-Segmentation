@@ -60,7 +60,7 @@ def get_args_parser():
     else:
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
     parser.add_argument('--epochs', default=1000000, type=int)
-    parser.add_argument('--save_model_file_every_N_epoch', default=3, type = int) 
+    parser.add_argument('--save_model_file_every_N_epoch', default=5, type = int) 
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
