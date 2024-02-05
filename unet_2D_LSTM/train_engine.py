@@ -58,6 +58,8 @@ def train_loop(args, model, data_loader_train, optimizer):
                 pred_softmax = F.softmax(seg_pred,dim = 1)
                 pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
                 print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax))
+                if len(np.unique(pred_seg_softmax)) != args.num_classes:
+                    raise ValueError('unique is not equal to num_classes')
 
 
         loss_list.append(loss.item())

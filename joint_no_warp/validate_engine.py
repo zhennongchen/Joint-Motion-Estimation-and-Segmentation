@@ -21,7 +21,6 @@ def valid_loop(args, model, data_loader_valid):
     loss_list = []
     flow_loss_list = []
     seg_loss_list = []
-    warp_seg_loss_list = []
     dice_loss_list = []
     
     with torch.no_grad():
@@ -48,9 +47,9 @@ def valid_loop(args, model, data_loader_valid):
             seg_time0 = torch.repeat_interleave(seg_time0, 15, dim=0).to("cuda") 
             warp_seg_time0 = F.grid_sample(seg_time0, net['grid'], padding_mode='border')
 
-            warp_seg_loss = seg_criterion(warp_seg_time0, seg_gt.squeeze(1).long())
+            # warp_seg_loss = seg_criterion(warp_seg_time0, seg_gt.squeeze(1).long())
 
-            loss = args.loss_weight[0] * flow_loss +  args.loss_weight[1] * seg_loss + args.loss_weight[2] * warp_seg_loss
+            loss = args.loss_weight[0] * flow_loss +  args.loss_weight[1] * seg_loss# + args.loss_weight[2] * warp_seg_loss
 
             # calculate Dice loss as well
             pred_seg = net['outs']
@@ -63,11 +62,10 @@ def valid_loop(args, model, data_loader_valid):
         loss_list.append(loss.item())
         flow_loss_list.append(flow_loss.item())
         seg_loss_list.append(seg_loss.item())
-        warp_seg_loss_list.append(warp_seg_loss.item())
         dice_loss_list.append(Dice_loss.item())
         torch.cuda.synchronize()
 
-    return sum(loss_list) / len(loss_list), sum(flow_loss_list) / len(flow_loss_list), sum(seg_loss_list) / len(seg_loss_list), sum(warp_seg_loss_list) / len(warp_seg_loss_list), sum(dice_loss_list) / len(dice_loss_list)
+    return sum(loss_list) / len(loss_list), sum(flow_loss_list) / len(flow_loss_list), sum(seg_loss_list) / len(seg_loss_list),sum(dice_loss_list) / len(dice_loss_list)
 
 
 def pred_save(batch, output,args):

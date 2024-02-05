@@ -52,7 +52,7 @@ def get_args_parser():
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
-    parser.add_argument('--loss_weight', default= [1,0]) # [ce_loss, dice_loss]
+    parser.add_argument('--loss_weight', default= [1,0.2]) # [ce_loss, dice_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')

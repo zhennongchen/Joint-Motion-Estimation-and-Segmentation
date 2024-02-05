@@ -36,16 +36,16 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'unet3D_alldata'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = None
+    pretrained_model_epoch = 10
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
 
-    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet3D_trial1', 'models', 'model-200.pth'), help='path where to save, empty for no saving')
-    # if pretrained_model_epoch == None:
-    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
-    # else:
-    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet3D_trial1', 'models', 'model-200.pth'), help='path where to save, empty for no saving')
+    if pretrained_model_epoch == None:
+        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    else:
+        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
     parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
@@ -62,7 +62,7 @@ def get_args_parser():
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
-    parser.add_argument('--accum_iter', default=1, type=float)
+    parser.add_argument('--accum_iter', default=5, type=float)
     
     # Dataset parameters
     parser.add_argument('--img_size', default=128, type=int)    
@@ -90,7 +90,7 @@ def run(args):
 
     # Data loading code
     train_index_list = np.arange(0,100,1)  
-    valid_index_list = np.arange(0,25,1) # just to monitor the validation loss, will not be used to select any hyperparameters
+    valid_index_list = np.arange(0,50,1) # just to monitor the validation loss, will not be used to select any hyperparameters
     train_batch_list = None
     valid_batch_list = None
 

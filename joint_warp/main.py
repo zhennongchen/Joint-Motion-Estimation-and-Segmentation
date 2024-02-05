@@ -37,7 +37,7 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'joint_warp_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 145
+    pretrained_model_epoch = 430
 
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
@@ -49,7 +49,7 @@ def get_args_parser():
     else:
         parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=True)
+    parser.add_argument('--train_mode', default=False)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False)
@@ -188,7 +188,7 @@ def run(args):
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,2,1)
+        pred_index_list = np.arange(60,100,1)
         pred_batch_list = None
         
         dataset_pred = build_data_CMR(args, args.dataset_name,
