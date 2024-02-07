@@ -26,15 +26,15 @@ def nan_cal(x):
 
 defaults = Defaults.Parameters()
 
-dataset = 'STACOM'
+dataset = 'ACDC'
 
 # define patient list
-patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/STACOM_Patient_List_training_testing.xlsx')
-index_list = np.arange(60,100,1)
+patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/ACDC_Patient_List_training_testing.xlsx')
+index_list = np.arange(0,100,1)
 patient_id_list,_,_,_ ,_,_,_ ,_ ,_, _ ,_, _ = Build_list.__build__(patient_list_file, batch_list = None, index_list = index_list)
 
-main_folder = os.path.join(defaults.sam_dir, 'models/joint_warp_trial1/predicts')
-epoch = 430
+main_folder = os.path.join(defaults.sam_dir, 'models/joint_trial1_alldata/predicts')
+epoch = 80
 
 # slice inclusion in the calculation
 if dataset == 'STACOM':
@@ -76,11 +76,11 @@ for i in range(0,len(patient_id_list)):
 
     base_dice = []; mid_dice = []; apex_dice = []; all_dice = []
 
-    for slice_num in np.arange(0, len(gt_files) - 1):
+    for slice_num in np.arange(1, len(gt_files) - 1):
         # print('slice_num: ', slice_num)
         # for STACOM
         if dataset == 'STACOM':
-            if slice_num in exclude_slice or slice_num < start_slice - 1 or slice_num > end_slice:
+            if slice_num in exclude_slice or slice_num < start_slice  or slice_num > end_slice:
                 # print('slice excluded')
                 continue
         
