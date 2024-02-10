@@ -23,7 +23,10 @@ def random_rotate(i, z_rotate_degree = None, z_rotate_range = [-10,10], fill_val
     if fill_val is None:
         fill_val = np.min(i)
     
-    return Data_processing.rotate_image(np.copy(i), [0,0,z_rotate_degree], order = order, fill_val = fill_val, ), z_rotate_degree
+    if i.ndim == 2:
+        return Data_processing.rotate_image(np.copy(i), z_rotate_degree, order = order, fill_val = fill_val), z_rotate_degree
+    elif i.ndim == 3:
+        return Data_processing.rotate_image(np.copy(i), [0,0,z_rotate_degree], order = order, fill_val = fill_val, ), z_rotate_degree
 
 def random_translate(i, x_translate = None,  y_translate = None, translate_range = [-10,10]):
     # only do translate according to x and y
@@ -31,7 +34,10 @@ def random_translate(i, x_translate = None,  y_translate = None, translate_range
         x_translate = int(random.uniform(translate_range[0], translate_range[1]))
         y_translate = int(random.uniform(translate_range[0], translate_range[1]))
 
-    return Data_processing.translate_image(np.copy(i), [x_translate,y_translate,0]), x_translate,y_translate
+    if i.ndim == 2:
+        return Data_processing.translate_image(np.copy(i), [x_translate,y_translate]), x_translate,y_translate
+    elif i.ndim == 3:
+        return Data_processing.translate_image(np.copy(i), [x_translate,y_translate,0]), x_translate,y_translate
 
 
 def random_brightness(i, v = None):

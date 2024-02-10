@@ -3,7 +3,7 @@ import nibabel as nb
 import os
 from skimage.measure import block_reduce
 from scipy import ndimage
-import sam_cmr.functions_collection as ff
+import Joint_motion_seg_estimate_CMR.functions_collection as ff
 
 
 # function: basic crop or pad
