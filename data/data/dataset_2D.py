@@ -143,17 +143,17 @@ class Dataset_CMR_2D(torch.utils.data.Dataset):
     
     # function: get each item using the index [file_index, slice_index]
     def __getitem__(self, index):
-        print('in this geiitem, self.index_array is: ', self.index_array, ' and index is :', index)
+        # print('in this geiitem, self.index_array is: ', self.index_array, ' and index is :', index)
         f,s, tf = self.index_array[index]
-        print('index is: ', index, ' now we pick file ', f, ' and slice ', s, ' and tf ', tf)
+        # print('index is: ', index, ' now we pick file ', f, ' and slice ', s, ' and tf ', tf)
         image_filename = self.image_file_list[f]
-        print('image file is: ', image_filename, ' while current image file is: ', self.current_image_file)
+        # print('image file is: ', image_filename, ' while current image file is: ', self.current_image_file)
         seg_filename = self.seg_file_list[f]
-        print('seg file is: ', seg_filename, ' while current seg file is: ', self.current_seg_file)
+        # print('seg file is: ', seg_filename, ' while current seg file is: ', self.current_seg_file)
 
         # if it's a new case, then do the data loading; if it's not, then just use the current data
         if image_filename != self.current_image_file or seg_filename != self.current_seg_file:
-            print('new image file, load')
+            # print('new image file, load')
             image_loaded = self.load_file(image_filename, segmentation_load = False) 
 
             self.original_shape = image_loaded[:,:,0,:].shape # [x,y,tf], before center crop
@@ -163,7 +163,7 @@ class Dataset_CMR_2D(torch.utils.data.Dataset):
             # now we need to do the center crop for both image and seg
             # we have data volume as [x, y ,slice_num,tf], for each data volume , we use the [x,y, middle_slice, 0] for the centroid calculation (0 is ED, which always has segmentation)
             _,_, self.centroid = Data_processing.center_crop( image_loaded[:,:,image_loaded.shape[2] // 2, 0], seg_loaded[:,:,image_loaded.shape[2]//2, 0], self.image_shape, according_to_which_class = self.center_crop_according_to_which_class , centroid = None)
-            print('self.centroid is: ', self.centroid)
+            # print('self.centroid is: ', self.centroid)
 
             if any(jjj[0] == 'random_crop' for jjj in self.augment_list) and np.random.uniform(0,1)  < self.augment_frequency:
                 parameter_index = next((i for i, x in enumerate(self.augment_list) if x[0] == 'random_crop'), None)
@@ -176,7 +176,7 @@ class Dataset_CMR_2D(torch.utils.data.Dataset):
             else:
                 centroid_used_for_crop = self.centroid
 
-            print('centroid_used_for_crop is: ', centroid_used_for_crop)
+            # print('centroid_used_for_crop is: ', centroid_used_for_crop)
             
             # then for each dim in slice_num and tf, we do the center crop
             image_loaded_tem = np.zeros([self.image_shape[0],self.image_shape[1],image_loaded.shape[2],image_loaded.shape[3]])
@@ -271,7 +271,7 @@ class Dataset_CMR_2D(torch.utils.data.Dataset):
         if np.sum(original_seg) < self.seg_include_lowest_piexel:
             processed_seg = np.zeros_like(processed_seg) + self.turn_zero_seg_slice_into
         # print('annotation_frame_list is: ', annotation_frame_list)
-        print('unique value in processed seg: ', np.unique(processed_seg))
+        # print('unique value in processed seg: ', np.unique(processed_seg))
             
             
         # now it's time to turn numpy into tensor and collect as a dictionary (this is the final return)
@@ -281,7 +281,7 @@ class Dataset_CMR_2D(torch.utils.data.Dataset):
         original_image_torch = torch.from_numpy(original_image).unsqueeze(0).float()
         original_seg_torch = torch.from_numpy(original_seg).unsqueeze(0).float()
 
-        print('processed seg torch shape: ', processed_seg_torch.shape)
+        # print('processed seg torch shape: ', processed_seg_torch.shape)
 
         # also add infos from patient list spread sheet
         patient_id = os.path.basename(os.path.dirname(image_filename))

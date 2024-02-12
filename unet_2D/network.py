@@ -52,7 +52,7 @@ def Upsample2D(dim, dim_out = None, upsample_factor = (2,2)):
 
 def Downsample2D(dim, dim_out = None):
     return nn.Sequential(
-        nn.MaxPool3d(kernel_size=(2,2), stride=(2,2), padding=0),
+        nn.MaxPool2d(kernel_size=(2,2), stride=(2,2), padding=0),
         nn.Conv2d(dim, default(dim_out, dim), 1)
     )
    
@@ -130,7 +130,7 @@ class Unet2D(nn.Module):
         self.out_dim = num_classes
 
         self.final_block = ConvBlock2D(init_dim * 2, init_dim)
-        self.final_conv = nn.Conv3d(init_dim, self.out_dim, 1)  # output channel is initial channel number
+        self.final_conv = nn.Conv2d(init_dim, self.out_dim, 1)  # output channel is initial channel number
 
     def forward(self, x):
 

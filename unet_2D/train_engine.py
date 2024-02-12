@@ -25,6 +25,8 @@ def train_loop(args, model, data_loader_train, optimizer):
     ce_loss_list = []
     dice_loss_list = []
 
+    start_to_only_have_0 = False
+
     for batch_idx, batch in enumerate(data_loader_train, 1):
 
         with torch.cuda.amp.autocast():
@@ -39,12 +41,14 @@ def train_loop(args, model, data_loader_train, optimizer):
 
             # segmentation
             batch_seg = batch['mask']
+            # print('in train batch_seg shape: ', batch_seg.shape)
 
             seg_pred = model(image_input)
             # print('in train seg_pred shape: ', seg_pred.shape)
 
             # # CE loss
             seg_gt_CE = torch.clone(batch_seg).to("cuda")
+            
             ce_loss = seg_criterion(seg_pred, seg_gt_CE.squeeze(1).long()) 
 
             # Dice loss
@@ -59,16 +63,18 @@ def train_loop(args, model, data_loader_train, optimizer):
 
             if batch_idx % 30 == 0:
                 print('in this iteration loss: ', np.round(loss.item(),3), ' ce_loss: ', np.round(ce_loss.item(),3), ' dice_loss: ', np.round(dice_loss.item(),3))
-        
                 pred_softmax = F.softmax(seg_pred,dim = 1)
-                # print('pred_softmax shape: ', pred_softmax.shape)
                 pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
-                # print('pred_seg_softmax shape: ', pred_seg_softmax.shape)
                 print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique in seg_gt_CE: ', torch.unique(seg_gt_CE))
+
+                unique_value = np.unique(pred_seg_softmax)
+                if len(unique_value) == 1:
+                    start_to_only_have_0 = True
+      
 
             
         loss_list.append(loss.item())
         ce_loss_list.append(ce_loss.item())
         dice_loss_list.append(dice_loss.item())
 
-    return sum(loss_list) / len(loss_list), sum(ce_loss_list) / len(ce_loss_list), sum(dice_loss_list) / len(dice_loss_list)
+    return sum(loss_list) / len(loss_list), sum(ce_loss_list) / len(ce_loss_list), sum(dice_loss_list) / len(dice_loss_list), start_to_only_have_0

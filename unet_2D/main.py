@@ -14,10 +14,10 @@ import argparse
 import pandas as pd
 from einops import rearrange
 
-from Joint_motion_seg_estimate_CMR.unet_3D.network import *
-from Joint_motion_seg_estimate_CMR.data.data_CMR import *
-from Joint_motion_seg_estimate_CMR.unet_3D.train_engine import *
-from Joint_motion_seg_estimate_CMR.unet_3D.validate_engine import *
+from Joint_motion_seg_estimate_CMR.unet_2D.network import *
+from Joint_motion_seg_estimate_CMR.data.data_CMR_2D import *
+from Joint_motion_seg_estimate_CMR.unet_2D.train_engine import *
+from Joint_motion_seg_estimate_CMR.unet_2D.validate_engine import *
 import Joint_motion_seg_estimate_CMR.Defaults as Defaults
 import Joint_motion_seg_estimate_CMR.functions_collection as ff
 
@@ -34,9 +34,9 @@ def get_args_parser():
     
     
     ########## important parameters
-    trial_name = 'unet3D_trial1'
+    trial_name = 'unet2D_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 255
+    pretrained_model_epoch = 20
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
@@ -47,11 +47,11 @@ def get_args_parser():
     else:
         parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=False)
+    parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
-    parser.add_argument('--loss_weight', default= [0,1]) # [ce_loss, dice_loss]
+    parser.add_argument('--loss_weight', default= [1,0.5]) # [ce_loss, dice_loss]
 
     if pretrained_model_epoch == None:
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
@@ -62,7 +62,7 @@ def get_args_parser():
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
-    parser.add_argument('--accum_iter', default=5, type=float)
+    parser.add_argument('--accum_iter', default=1, type=float)
     
     # Dataset parameters
     parser.add_argument('--img_size', default=128, type=int)    
@@ -89,50 +89,34 @@ def run(args):
     ff.make_folder([args.output_dir, os.path.join(args.output_dir, 'models'), os.path.join(args.output_dir, 'logs')])
 
     # Data loading code
-    train_index_list = np.arange(0,100,1)  
-    valid_index_list = np.arange(0,50,1) # just to monitor the validation loss, will not be used to select any hyperparameters
+    train_index_list = np.arange(0,60,1)  
+    valid_index_list = np.arange(60,80,1) # just to monitor the validation loss, will not be used to select any hyperparameters
     train_batch_list = None
     valid_batch_list = None
 
-    dataset_train = build_data_CMR(args, args.dataset_name, 
+    dataset_train = build_data_CMR_2D(args, args.dataset_name, 
                     train_batch_list,  train_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = True,
                     augment_list = args.augment_list, augment_frequency = args.augment_frequency,
                     return_arrays_or_dictionary = 'dictionary')
     
-    dataset_valid = build_data_CMR(args, 'ACDC', 
+    dataset_valid = build_data_CMR_2D(args, args.dataset_name, 
                     valid_batch_list, valid_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = False,
                     augment_list = [], augment_frequency = -0.1,
                     return_arrays_or_dictionary = 'dictionary')
 
-    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count()) 
-    data_loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
+    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size = 15, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count()) 
+    data_loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size = 15, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
 
     # build model
-    model = Unet3D(init_dim = 16,
+    model = Unet2D(init_dim = 16,
         channels = 1,
         dim_mults = (2,4,8,16),
         num_classes = args.num_classes)
 
     """""""""""""""""""""""""""""""""""""""TRAINING"""""""""""""""""""""""""""""""""""""""
     if args.train_mode == True:
-        # freeze the encoder part
-        freeze_list = ["conv_blocks"]
-        freeze_keys = []
-        if args.freeze_encoder == True:
-            for n, value in model.named_parameters():
-                if any(freeze_name in n for freeze_name in freeze_list):
-                    value.requires_grad = False
-                    freeze_keys.append(n)
-            else:
-                value.requires_grad = True
-        else:
-            for p in model.parameters():
-                p.requires_grad = True
-        print('freeze_keys: ', freeze_keys)
-        
-
         model = model.to(device)
         optimizer = optim.Adam(model.parameters(),lr=args.lr)
         # load pretrained model
@@ -143,7 +127,6 @@ def run(args):
             print('loaded pretrained model from: ', args.pretrained_model)
         else:
             print('new train')
-
 
         # train loop
         training_log = []
@@ -158,7 +141,7 @@ def run(args):
             print('learning rate now: ', optimizer.param_groups[0]['lr'])
 
             # train
-            train_loss,  train_ce_loss, train_dice_loss = train_loop(args, model, data_loader_train, optimizer)
+            train_loss,  train_ce_loss, train_dice_loss, start_to_only_have_0 = train_loop(args, model, data_loader_train, optimizer)
             
             # on_epoch_end
             dataset_train.on_epoch_end()
@@ -180,8 +163,8 @@ def run(args):
                 print('validation loss: ', valid_loss, 'valid ce_loss: ', valid_ce_loss, 'valid dice_loss: ', valid_dice_loss)
 
             # save_log
-            training_log.append([epoch, train_loss, train_ce_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_ce_loss, valid_dice_loss])
-            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_ce_loss', 'train_dice_loss', 'lr', 'valid_loss', 'valid_ce_loss', 'valid_dice_loss'])
+            training_log.append([epoch, train_loss, train_ce_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_ce_loss, valid_dice_loss, start_to_only_have_0])
+            training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_ce_loss', 'train_dice_loss', 'lr', 'valid_loss', 'valid_ce_loss', 'valid_dice_loss', 'start_to_only_have_0'])
             training_log_df.to_excel(os.path.join(args.output_dir, 'logs', 'training_log.xlsx'), index = False)
 
     else:
@@ -189,7 +172,7 @@ def run(args):
         pred_index_list = np.arange(60,100,1)
         pred_batch_list = None
         
-        dataset_pred = build_data_CMR(args, args.dataset_name,
+        dataset_pred = build_data_CMR_2D(args, args.dataset_name,
                     pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = False,
                     augment_list = [], augment_frequency = -0.1,
@@ -202,10 +185,11 @@ def run(args):
         # build model
 
         with torch.no_grad():
-           model = Unet3D(init_dim = 16,
-        channels = 1,
-        dim_mults = (2,4,8,16),
-        num_classes = args.num_classes)
+           model = Unet2D(init_dim = 16,
+            channels = 1,
+            dim_mults = (2,4,8,16),
+            num_classes = args.num_classes)
+           
            model.to(device)
            pretrained_model = torch.load(args.pretrained_model)
            print('loaded pretrained model from: ', args.pretrained_model)
