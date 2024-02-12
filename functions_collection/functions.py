@@ -34,6 +34,7 @@ def customized_dice_loss(pred, mask, num_classes, add_softmax = True, exclude_in
 
         pred_cls = pred_cls.reshape(-1)
         mask_cls = mask_cls.reshape(-1)
+        # print('before mask, pred_cls sum: ', torch.sum(pred_cls).item(), ' mask_cls sum: ', torch.sum(mask_cls).item())
 
         # Ignore the excluded slice
         valid_mask = (mask != exclude_index)
@@ -41,6 +42,7 @@ def customized_dice_loss(pred, mask, num_classes, add_softmax = True, exclude_in
 
         pred_cls = pred_cls * valid_mask
         mask_cls = mask_cls * valid_mask
+        # print('after mask, pred_cls sum: ', torch.sum(pred_cls).item(), ' mask_cls sum: ', torch.sum(mask_cls).item()) 
 
         # Calculate intersection and union
         intersection = torch.sum(pred_cls * mask_cls)
@@ -48,6 +50,7 @@ def customized_dice_loss(pred, mask, num_classes, add_softmax = True, exclude_in
 
         # Compute Dice score for this class and accumulate
         dice_score_cls = (2.0 * intersection + 1e-6) / (union + 1e-6)
+        # print('intersection: ', intersection.item(), ' union: ', union.item(), ' dice_score_cls: ', dice_score_cls.item())
         dice_loss += dice_score_cls
 
     return 1- (dice_loss / (num_classes - 1))  # Divide by the number of classes
