@@ -16,6 +16,7 @@ from einops import rearrange
 
 
 def customized_dice_loss(pred, mask, num_classes, add_softmax = True, exclude_index = 10):
+
     if add_softmax == True:
         pred_softmax = F.softmax(pred,dim = 1)
   
@@ -30,6 +31,11 @@ def customized_dice_loss(pred, mask, num_classes, add_softmax = True, exclude_in
 
         # Get predictions and ground truth for the current class
         pred_cls = pred_softmax[:, cls, :]
+
+        if np.isnan(torch.sum(torch.clone(pred_cls)).item()) == True:
+            print('NAN!!sum of pred and sum of pred_softmax: ', torch.sum(pred_cls).item(), torch.sum(pred_softmax).item())
+            raise ValueError('NAN in pred_cls')
+
         mask_cls = (mask == cls).float()  # Convert to float for multiplication
 
         pred_cls = pred_cls.reshape(-1)

@@ -36,7 +36,7 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'unet2D_trial1'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 20
+    pretrained_model_epoch = 64
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
@@ -47,7 +47,7 @@ def get_args_parser():
     else:
         parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=True)
+    parser.add_argument('--train_mode', default=False)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
@@ -58,11 +58,11 @@ def get_args_parser():
     else:
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
     parser.add_argument('--epochs', default=2000, type=int)
-    parser.add_argument('--save_model_file_every_N_epoch', default=5, type = int) 
+    parser.add_argument('--save_model_file_every_N_epoch', default=2, type = int) 
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
-    parser.add_argument('--accum_iter', default=1, type=float)
+    parser.add_argument('--accum_iter', default=5, type=float)
     
     # Dataset parameters
     parser.add_argument('--img_size', default=128, type=int)    
@@ -170,40 +170,74 @@ def run(args):
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
         pred_index_list = np.arange(60,100,1)
-        pred_batch_list = None
-        
-        dataset_pred = build_data_CMR_2D(args, args.dataset_name,
-                    pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
-                    shuffle = False,
-                    augment_list = [], augment_frequency = -0.1,
-                    return_arrays_or_dictionary = 'dictionary')
-        
-        
-        data_loader_pred = torch.utils.data.DataLoader(dataset_pred, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
-
-
-        # build model
 
         with torch.no_grad():
-           model = Unet2D(init_dim = 16,
-            channels = 1,
-            dim_mults = (2,4,8,16),
-            num_classes = args.num_classes)
-           
-           model.to(device)
-           pretrained_model = torch.load(args.pretrained_model)
-           print('loaded pretrained model from: ', args.pretrained_model)
-           model.load_state_dict(pretrained_model['model'])
+            model = Unet2D(init_dim = 16,
+                channels = 1,
+                dim_mults = (2,4,8,16),
+                num_classes = args.num_classes)
+                
+            model.to(device)
+            pretrained_model = torch.load(args.pretrained_model)
+            print('loaded pretrained model from: ', args.pretrained_model)
+            model.load_state_dict(pretrained_model['model'])
 
-           for batch_idx, batch in enumerate(data_loader_pred, 1):
-                # image
-                batch_image = batch['image']
-                image_input = torch.clone(batch_image).to("cuda")
+            for k in range(0, len(pred_index_list)):
+                pred_index_list1 = np.arange(pred_index_list[k], pred_index_list[k]+1,1)
 
-                output =  model(image_input)
-            
-                pred_save(batch, output,args)
-               
+                dataset_pred = build_data_CMR_2D(args, args.dataset_name,
+                        None, pred_index_list1, 
+                        full_or_nonzero_slice = args.full_or_nonzero_slice,
+                        shuffle = False,
+                        augment_list = [], augment_frequency = -0.1,
+                        return_arrays_or_dictionary = 'dictionary')
+        
+        
+                data_loader_pred = torch.utils.data.DataLoader(dataset_pred, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
+
+                for batch_idx, batch in enumerate(data_loader_pred, 1):
+                    # if os.path.isfile(os.path.join(args.output_dir, 'predicts_raw', batch["patient_id"][0], 'epoch-' + str(args.pretrained_model_epoch), 'pred_seg_slice0_tf14.nii.gz')):
+                    #     continue
+
+                    # image
+                    batch_image = batch['image']
+                    image_input = torch.clone(batch_image).to("cuda")
+                    output =  model(image_input)
+                        
+                    pred_save_2D(batch, output,args)
+
+                print('done this patient')
+                save_folder_sub = os.path.join(args.output_dir, 'predicts_raw', batch["patient_id"][0], 'epoch-' + str(args.pretrained_model_epoch))
+                image_shape = nb.load(batch["image_nonzero_slice_file"][0]).get_fdata().shape
+                slice_number = image_shape[2]
+
+                patient_id = batch["patient_id"][0]
+                new_save_folder = os.path.join(args.output_dir, 'predicts', patient_id, 'epoch-' + str(args.pretrained_model_epoch))
+                ff.make_folder([os.path.dirname(os.path.dirname(new_save_folder)), os.path.dirname(new_save_folder), new_save_folder])
+                
+
+                for s in range(0, slice_number):
+                    
+                    pred_seg = np.zeros((image_shape[0], image_shape[1], 15))
+                    for tf in range(0,15):
+                        pred_file = os.path.join(save_folder_sub, 'pred_seg_slice' + str(s) + '_tf' + str(tf) + '.nii.gz')
+                        p = nb.load(pred_file).get_fdata()
+                        pred_seg[:,:,tf] = p
+                    
+                    original_image = nb.load(batch["image_nonzero_slice_file"][0]).get_fdata()[:,:,s,:]
+                    original_seg = nb.load(batch["seg_nonzero_slice_file"][0]).get_fdata()[:,:,s,:]
+                    affine = nb.load(batch["image_nonzero_slice_file"][0]).affine
+
+                    # save the image and mask
+                    nb.save(nb.Nifti1Image(original_image, affine), os.path.join(new_save_folder, 'original_image_' + str(s) + '.nii.gz'))
+                    nb.save(nb.Nifti1Image(original_seg, affine), os.path.join(new_save_folder, 'original_seg_' + str(s) + '.nii.gz'))
+                    nb.save(nb.Nifti1Image(pred_seg, affine), os.path.join(new_save_folder, 'pred_seg_' + str(s) + '.nii.gz'))
+                        
+
+
+
+
+                
 
 if __name__ == '__main__':
     args = get_args_parser()

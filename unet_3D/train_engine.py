@@ -69,10 +69,10 @@ def train_loop(args, model, data_loader_train, optimizer):
                 if np.unique(pred_seg_softmax).shape[0] < 2:
                     start_to_have_zero = True
         
-        if np.isnan(loss.item()) == False:
-            loss_list.append(loss.item())
-            ce_loss_list.append(ce_loss.item())
-            dice_loss_list.append(dice_loss.item())
+     
+        loss_list.append(loss.item())
+        ce_loss_list.append(ce_loss.item())
+        dice_loss_list.append(dice_loss.item())
 
 
     return sum(loss_list) / len(loss_list), sum(ce_loss_list) / len(ce_loss_list), sum(dice_loss_list) / len(dice_loss_list), start_to_have_zero

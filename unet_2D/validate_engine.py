@@ -62,11 +62,10 @@ def valid_loop(args, model, data_loader_valid):
     return sum(loss_list) / len(loss_list), sum(ce_loss_list) / len(ce_loss_list), sum(dice_loss_list) / len(dice_loss_list)
 
 
-def pred_save(batch, output,args):
+def pred_save_2D(batch, output,args):
 
     pred_softmax = F.softmax(output,dim = 1)
-    pred_seg = pred_softmax.argmax(1).detach().cpu().numpy().squeeze()
-                        
+    pred_seg = pred_softmax.argmax(1).detach().cpu().numpy().squeeze()         
 
     original_shape = np.array([x.item() for x in batch["original_shape"]])
     centroid = batch["centroid"].numpy().flatten()
@@ -81,8 +80,8 @@ def pred_save(batch, output,args):
             start = max(end - size, 0)
         crop_start_end_list.append([start, end])
      
-
-    final_pred_seg = np.zeros(original_shape)
+    final_pred_seg = np.zeros((original_shape[0], original_shape[1]))
+   
     final_pred_seg[crop_start_end_list[0][0]:crop_start_end_list[0][1], crop_start_end_list[1][0]:crop_start_end_list[1][1]] = pred_seg
 
     # save original image and ground truth segmentation
@@ -97,17 +96,25 @@ def pred_save(batch, output,args):
         original_seg_file = batch["seg_nonzero_slice_file_loose"][0]
                     
     slice_index = batch["slice_index"].item()
+    tf_index = batch["tf_index"].item()
 
     affine = nb.load(original_image_file).affine
-    original_image = nb.load(original_image_file).get_fdata()[:,:,slice_index,:]
-    original_seg = nb.load(original_seg_file).get_fdata()[:,:,slice_index,:]
+    original_image = nb.load(original_image_file).get_fdata()[:,:,slice_index,tf_index]
+    original_seg = nb.load(original_seg_file).get_fdata()[:,:,slice_index,tf_index]
 
-    save_folder = os.path.join(args.output_dir, 'predicts'); ff.make_folder([save_folder])
+    slice_number = nb.load(original_image_file).get_fdata().shape[2]
+
+    # add one axis to the original image and segmentation
+    original_image = np.expand_dims(original_image, axis = -1)
+    original_seg = np.expand_dims(original_seg, axis = -1)
+
+    save_folder = os.path.join(args.output_dir, 'predicts_raw'); ff.make_folder([save_folder])
 
     patient_id = batch["patient_id"][0]
+    print('patient_id: ', patient_id)
    
     save_folder_sub = os.path.join(save_folder, patient_id, 'epoch-' + str(args.pretrained_model_epoch)); ff.make_folder([os.path.dirname(save_folder_sub),save_folder_sub])
 
-    nb.save(nb.Nifti1Image(final_pred_seg, affine), os.path.join(save_folder_sub, 'pred_seg_%s.nii.gz' % slice_index))
-    nb.save(nb.Nifti1Image(original_image, affine), os.path.join(save_folder_sub, 'original_image_%s.nii.gz' % slice_index))
-    nb.save(nb.Nifti1Image(original_seg, affine), os.path.join(save_folder_sub, 'original_seg_%s.nii.gz' % slice_index))
+    nb.save(nb.Nifti1Image(final_pred_seg, affine), os.path.join(save_folder_sub, 'pred_seg_slice%s_tf%s.nii.gz' % (slice_index, tf_index)))
+    # nb.save(nb.Nifti1Image(original_image, affine), os.path.join(save_folder_sub, 'original_image_slice%s_tf%s.nii.gz' % (slice_index, tf_index)))
+    # nb.save(nb.Nifti1Image(original_seg, affine), os.path.join(save_folder_sub, 'original_seg_slice%s_tf%s.nii.gz' % (slice_index, tf_index)))

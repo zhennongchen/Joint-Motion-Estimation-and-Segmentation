@@ -35,9 +35,9 @@ def get_args_parser():
     
     
     ########## important parameters
-    trial_name = 'unet2D_LSTM_trial2_alldata'
+    trial_name = 'unet2D_LSTM_final_alldata'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 70
+    pretrained_model_epoch = 65
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
