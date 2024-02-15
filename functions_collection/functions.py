@@ -290,13 +290,25 @@ def np_mean_dice(pred, truth, k_list = [1,2]):
     return np.mean(dsc)
 
 
-def HD(pred,gt, pixel_size, min ):
-    hd1 = directed_hausdorff(pred, gt)[0] * pixel_size
-    hd2 = directed_hausdorff(gt, pred)[0] * pixel_size
-    if min == False:
-        return hd1
+def HD(pred, gt, pixel_size, target_class, exclude_class = None, max_or_mean = 'max'):
+    if exclude_class is not None:
+        valid_mask = (gt != exclude_class)
+        pred = pred * valid_mask
+        gt = gt * valid_mask
+    
+    pred = (pred == target_class).astype(np.float32)
+    gt = (gt == target_class).astype(np.float32)
+
+    gt_points = np.argwhere(gt)
+    pred_points = np.argwhere(pred)
+
+    hd1 = directed_hausdorff(gt_points, pred_points)[0]
+    hd2 = directed_hausdorff(pred_points, gt_points)[0]
+
+    if max_or_mean == 'max':
+        return max(hd1, hd2) * pixel_size
     else:
-        return np.min(np.array([hd1, hd2]))
+        return (hd1 + hd2) / 2 * pixel_size
 
 # function: accuracy, sensitivity, specificity:
 def quantitative(y_pred, y_true):
