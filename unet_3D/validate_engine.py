@@ -62,7 +62,7 @@ def valid_loop(args, model, data_loader_valid):
     return sum(loss_list) / len(loss_list), sum(ce_loss_list) / len(ce_loss_list), sum(dice_loss_list) / len(dice_loss_list)
 
 
-def pred_save(batch, output,args):
+def pred_save(batch, output,args, save_folder):
 
     pred_softmax = F.softmax(output,dim = 1)
     pred_seg = pred_softmax.argmax(1).detach().cpu().numpy().squeeze()
@@ -101,8 +101,6 @@ def pred_save(batch, output,args):
     affine = nb.load(original_image_file).affine
     original_image = nb.load(original_image_file).get_fdata()[:,:,slice_index,:]
     original_seg = nb.load(original_seg_file).get_fdata()[:,:,slice_index,:]
-
-    save_folder = os.path.join(args.output_dir, 'predicts'); ff.make_folder([save_folder])
 
     patient_id = batch["patient_id"][0]
    

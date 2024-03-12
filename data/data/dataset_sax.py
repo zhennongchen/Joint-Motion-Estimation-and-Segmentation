@@ -19,11 +19,13 @@ from torch.utils.data import Dataset, DataLoader
 import Joint_motion_seg_estimate_CMR.Build_list_zhennong.Build_list as Build_list
 import Joint_motion_seg_estimate_CMR.Data_processing as Data_processing
 import Joint_motion_seg_estimate_CMR.data.data.random_aug_zhennong as random_aug
+import Joint_motion_seg_estimate_CMR.functions_collection as ff
 
 # load pre-saved prompt features
 base_feature = np.load('/mnt/camca_NAS/SAM_for_CMR/data/text_prompt_clip/base.npy')
 mid_feature = np.load('/mnt/camca_NAS/SAM_for_CMR/data/text_prompt_clip/mid.npy')
 apex_feature = np.load('/mnt/camca_NAS/SAM_for_CMR/data/text_prompt_clip/apex.npy')
+sax_feature = np.load('/mnt/camca_NAS/SAM_for_CMR/data/text_prompt_clip/sax.npy')
 
 # main function:
 class Dataset_CMR(torch.utils.data.Dataset):
@@ -34,7 +36,7 @@ class Dataset_CMR(torch.utils.data.Dataset):
             seg_file_list,
             total_slice_num_list,
 
-            seg_include_lowest_piexel = 100, # only include the segmentation with the lowest pixel number > seg_include_lowest_piexel in one slice
+            seg_include_lowest_pixel = 100, # only include the segmentation with the lowest pixel number > seg_include_lowest_piexel in one slice
             turn_zero_seg_slice_into = None, # if there is no segmentation in this slice, then turn the pixel value of this slice into 10
 
             return_arrays_or_dictionary = 'dictionary', # "arrays" or "dictionary"
@@ -59,7 +61,7 @@ class Dataset_CMR(torch.utils.data.Dataset):
         self.seg_file_list = seg_file_list
         self.total_slice_num_list = total_slice_num_list
 
-        self.seg_include_lowest_piexel = seg_include_lowest_piexel
+        self.seg_include_lowest_pixel = seg_include_lowest_pixel
         self.turn_zero_seg_slice_into = turn_zero_seg_slice_into
 
         self.relabel_LV = relabel_LV
@@ -152,7 +154,7 @@ class Dataset_CMR(torch.utils.data.Dataset):
     
     # function: get each item using the index [file_index, slice_index]
     def __getitem__(self, index):
-        # print('in this geiitem, self.index_array is: ', self.index_array, ' and index is :', index)
+        # print('I am in SAX!!! in this geiitem, self.index_array is: ', self.index_array, ' and index is :', index)
         f,s = self.index_array[index]
         # print('index is: ', index, ' now we pick file ', f, ' and slice ', s)
         image_filename = self.image_file_list[f]
@@ -170,8 +172,11 @@ class Dataset_CMR(torch.utils.data.Dataset):
             seg_loaded = self.load_file(seg_filename, segmentation_load=True) 
 
             # now we need to do the center crop for both image and seg
-            # we have data volume as [x, y ,slice_num,tf], for each data volume , we use the [x,y, middle_slice, 0] for the centroid calculation (0 is ED, which always has segmentation)
-            _,_, self.centroid = Data_processing.center_crop( image_loaded[:,:,image_loaded.shape[2] // 2, 0], seg_loaded[:,:,image_loaded.shape[2]//2, 0], self.image_shape, according_to_which_class = self.center_crop_according_to_which_class , centroid = None)
+            # we have data volume as [x, y ,slice_num,tf], for each data volume , we use the [x,y, middle_slice, 0] for the centroid calculation (refers to  ED, which always has segmentation)
+            for ed in range(0,15):
+                if np.sum(seg_loaded[:,:,image_loaded.shape[2]//2,ed] == self. center_crop_according_to_which_class[0]) > 0:
+                    break
+            _,_, self.centroid = Data_processing.center_crop( image_loaded[:,:,image_loaded.shape[2] // 2, ed], seg_loaded[:,:,image_loaded.shape[2]//2, ed], self.image_shape, according_to_which_class = self.center_crop_according_to_which_class , centroid = None)
             # print('self.centroid is: ', self.centroid)
 
             if any(jjj[0] == 'random_crop' for jjj in self.augment_list) and np.random.uniform(0,1)  < self.augment_frequency:
@@ -223,12 +228,9 @@ class Dataset_CMR(torch.utils.data.Dataset):
             processed_image = original_image + np.random.normal(0,standard_deviation,original_image.shape)
             # turn the image pixel range to [0,255]
             processed_image = Data_processing.turn_image_range_into_0_255(processed_image)
-            # print('add noise')
         else:
             processed_image = Data_processing.turn_image_range_into_0_255(original_image)
-            # print('no noise')
        
-
         # (1) do brightness
         if any(jjj[0] == 'brightness' for jjj in self.augment_list) and np.random.uniform(0,1)  < self.augment_frequency:
             parameter_index = next((i for i, x in enumerate(self.augment_list) if x[0] == 'brightness'), None)
@@ -278,63 +280,55 @@ class Dataset_CMR(torch.utils.data.Dataset):
 
         # find which times frame has segmentation, and put it into annotation frame list
         # also turn the pixel value of the slice without manual segmentation into 10
+        processed_seg_no_class_10 = np.copy(processed_seg) # before we turn the pixel value of the slice without manual segmentation into 10, we need to keep a copy of the original processed seg
         annotation_frame_list = []
         for tf in range(0,original_seg.shape[2]):
             s_i = np.copy(original_seg[:,:,tf])
             # turn pixels = 1 or 2 equal to 1 and others equal to 0
             s_i[s_i>0] = 1
             s_i[s_i>2] = 0
-            if np.sum(s_i) > self.seg_include_lowest_piexel:
+            if np.sum(s_i) > self.seg_include_lowest_pixel:
                 annotation_frame_list.append(tf)
             else:
                 # turn the pixel value of this slice in processeed seg all into turn_zero_seg_slice_into
                 if self.turn_zero_seg_slice_into is not None:
                     processed_seg[:,:,tf] = self.turn_zero_seg_slice_into
-        # if len(annotation_frame_list) != 15:
-        #     print('index is: ', index, ' now we pick file ', f, ' and slice ', s)
-        #     print('annotation_frame_list is: ', annotation_frame_list)
+        # print('annotation_frame_list is: ', annotation_frame_list)
         # print('unique value in processed seg: ', np.unique(processed_seg))
-            
             
         # now it's time to turn numpy into tensor and collect as a dictionary (this is the final return)
      
-       # processed_image_torch = torch.from_numpy(np.rollaxis(processed_image, 2, 0)).float()
-        processed_image_torch = torch.from_numpy(processed_image).unsqueeze(0).float()
-        # processed_seg_torch = torch.from_numpy(np.rollaxis(processed_seg, 2, 0))  ####### should I turn segmentation to float as well @ sekeun
+        # processed_image_torch = torch.from_numpy(np.rollaxis(processed_image, 2, 0)).float()
+        processed_image_torch = torch.from_numpy(processed_image).unsqueeze(0).float() 
         processed_seg_torch = torch.from_numpy(processed_seg).unsqueeze(0)  
+        processed_seg_no_class_10_torch = torch.from_numpy(processed_seg_no_class_10).unsqueeze(0)
 
-        # print('processed seg torch shape: ', processed_seg_torch.shape)
+        # print('SAX processed seg torch shape: ', processed_seg_torch.shape)
 
         # also need to return the original image and seg without the augmentation (with center crop done)
-        # original_image_torch = torch.from_numpy(np.rollaxis(original_image, 2, 0)).float()
         original_image_torch = torch.from_numpy(original_image).unsqueeze(0).float()
-        # original_seg_torch = torch.from_numpy(np.rollaxis(original_seg, 2, 0))
         original_seg_torch = torch.from_numpy(original_seg).unsqueeze(0).float()
 
         # find out it's base, mid or apex
         total_slice_num = self.total_slice_num_list[f]
-        segment_length = total_slice_num // 3
-        middle_segment_extra = total_slice_num % 3
-        arr = np.arange(0,total_slice_num)
-
-        base_segment = arr[:segment_length]
-        mid_segment = arr[segment_length:2 * segment_length + middle_segment_extra]
-        apex_segment = arr[2 * segment_length + middle_segment_extra:]
-
+        base_segment, mid_segment,apex_segment = ff.define_three_segments(total_slice_num)
+        
         if s in base_segment:
             slice_type = "base"
-            prompt_feature = base_feature
+            slice_prompt_feature = base_feature
         elif s in mid_segment:
             slice_type = "mid"
-            prompt_feature = mid_feature
+            slice_prompt_feature = mid_feature
         elif s in apex_segment:
             slice_type = "apex"
-            prompt_feature = apex_feature
+            slice_prompt_feature = apex_feature
         elif s < 0:
             slice_type = "apex"
-            prompt_feature = apex_feature
+            slice_prompt_feature = apex_feature
+        slice_prompt_feature = np.squeeze(slice_prompt_feature) 
+        prompt_feature = sax_feature
         prompt_feature = np.squeeze(prompt_feature)
-        # print('slice index', s, 'slice type is: ', slice_type)
+        # print('slice index', s, 'slice type is: ', slice_type, 'because base_segment is: ', base_segment, 'mid_segment is: ', mid_segment, 'apex_segment is: ', apex_segment)
           
         # also add infos from patient list spread sheet
         patient_id = os.path.basename(os.path.dirname(image_filename))
@@ -343,6 +337,7 @@ class Dataset_CMR(torch.utils.data.Dataset):
        
         final_dictionary = { "image": processed_image_torch, "mask": processed_seg_torch, 
                 "original_image": original_image_torch,  "original_seg": original_seg_torch,
+                'processed_seg_no_class_10': processed_seg_no_class_10_torch, # this is used for loss calculation
                 'annotation_frame_list': annotation_frame_list,
                 "image_file_name" : image_filename, "seg_file_name": seg_filename,
                 "original_shape" : self.original_shape,
@@ -350,6 +345,7 @@ class Dataset_CMR(torch.utils.data.Dataset):
                 'slice_index': s,
                 'slice_type' : slice_type,
                 'text_prompt_feature': prompt_feature,
+                'text_slice_prompt_feature': slice_prompt_feature,
                 # copy infos from patient list spreadsheet
                 "patient_id": row.iloc[0]['patient_id'],
                 "patient_group": row.iloc[0]['patient_group'],

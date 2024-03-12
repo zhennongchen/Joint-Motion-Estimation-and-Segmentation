@@ -34,9 +34,9 @@ def get_args_parser():
     
     
     ########## important parameters
-    trial_name = 'unet3D_alldata_new'
+    trial_name = 'unet3D_alldata'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 24
+    pretrained_model_epoch = 280
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
@@ -186,10 +186,10 @@ def run(args):
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,100,1)
+        pred_index_list = np.arange(0,50,1)
         pred_batch_list = None
         
-        dataset_pred = build_data_CMR(args, 'ACDC',
+        dataset_pred = build_data_CMR(args, 'HFpEF',
                     pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = False,
                     augment_list = [], augment_frequency = -0.1,
@@ -197,7 +197,6 @@ def run(args):
         
         
         data_loader_pred = torch.utils.data.DataLoader(dataset_pred, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
-
 
         # build model
 
@@ -217,8 +216,9 @@ def run(args):
                 image_input = torch.clone(batch_image).to("cuda")
 
                 output =  model(image_input)
-            
-                pred_save(batch, output,args)
+
+                save_folder = os.path.join(args.output_dir, 'predicts_HFpEF');ff.make_folder([save_folder])
+                pred_save(batch, output,args, save_folder)
                
 
 if __name__ == '__main__':
