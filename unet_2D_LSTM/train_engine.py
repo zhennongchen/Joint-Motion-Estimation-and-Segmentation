@@ -55,19 +55,17 @@ def train_loop(args, model, data_loader_train, optimizer):
 
                 loss = args.loss_weight[0] * ce_loss + args.loss_weight[1] * dice_loss
 
-                if batch_idx == 1 or batch_idx % args.accum_iter == 0 or batch_idx == len(data_loader_train):
+                if batch_idx == 1 or batch_idx % args.accum_iter == 0 or batch_idx == len(current_data_loader):
                     loss.backward()
                     optimizer.step()
 
-                if batch_idx % 100  == 0 or batch_idx == len(data_loader_train):
+                if batch_idx % 200  == 0:
                     print('in this iteration', batch_idx,' loss: ', np.round(loss.item(),3), ' ce_loss: ', np.round(ce_loss.item(),3), ' dice_loss: ', np.round(dice_loss.item(),3))
             
-                    # pred_softmax = F.softmax(seg_pred,dim = 1)
-                    # pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
-                    # print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax))
-                    # if len(np.unique(pred_seg_softmax)) != args.num_classes:
-                    #     raise ValueError('unique is not equal to num_classes')
-
+                pred_softmax = F.softmax(seg_pred,dim = 1)
+                pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
+                if np.unique(pred_seg_softmax).shape[0] != 2 or (torch.unique(batch_seg).shape[0] != 2 and torch.unique(batch_seg).shape[0] != 3):
+                    print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique in seg_gt_CE: ', torch.unique(batch_seg))
 
             loss_list.append(loss.item())
             ce_loss_list.append(ce_loss.item())
