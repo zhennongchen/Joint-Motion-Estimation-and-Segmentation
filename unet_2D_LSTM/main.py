@@ -37,18 +37,17 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'unet2D_LSTM_trial2_alldata'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 70
+    pretrained_model_epoch = 80
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
-
-    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet2D_LSTM_trial1', 'models', 'model-100.pth'), help='path where to save, empty for no saving')
+    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet2D_LSTM_trial2_alldata', 'models', 'model-80.pth'), help='path where to save, empty for no saving')
     if pretrained_model_epoch == None:
         parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
     else:
         parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=False)
+    parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
@@ -58,7 +57,7 @@ def get_args_parser():
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
     else:
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
-    parser.add_argument('--epochs', default=2000000, type=int)
+    parser.add_argument('--epochs', default=100, type=int)
     parser.add_argument('--save_model_file_every_N_epoch', default=5, type = int) 
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
@@ -66,10 +65,13 @@ def get_args_parser():
     parser.add_argument('--accum_iter', default = 1, type=float)
     
     # Dataset parameters
+    parser.add_argument('--dataset_names', default=[['STACOM', 'sax'], ['ACDC', 'sax'], ['HFpEF', 'sax'] ], type=list)
+    parser.add_argument('--dataset_split',default=[[np.arange(0,100,1) , np.arange(0,0,1)], [np.arange(0,100,1) , np.arange(100,150,1)], [np.arange(0,0,1) , np.arange(0,0,1)]], type=list) # [training_data, validation_data]. for LAX: 0-60 case: 0-224, 60-80: 224-297, 80-100: 297-376
+    parser.add_argument('--dataset_train', default= [], type = list)
+    parser.add_argument('--dataset_valid', default= [], type = list)
+
     parser.add_argument('--img_size', default=128, type=int)    
     parser.add_argument('--num_classes', type=int, default=2)  ######## important!!!!
-
-    parser.add_argument('--dataset_name', default='STACOM')
     parser.add_argument('--full_or_nonzero_slice', default='nonzero') # full means all the slices, nonzero means only the slices with manual segmentation at both ED and ES, loose means the slices with manual segmentation at either ED or ES or both
     parser.add_argument('--turn_zero_seg_slice_into', default=10, type=int)
     parser.add_argument('--augment_list', default=[('brightness' , None), ('contrast', None), ('sharpness', None), ('flip', None), ('rotate', [-20,20]), ('translate', [-5,5]), ('random_crop', [-5,5])], type=list)
@@ -89,27 +91,6 @@ def run(args):
     # build some folders
     ff.make_folder([args.output_dir, os.path.join(args.output_dir, 'models'), os.path.join(args.output_dir, 'logs')])
 
-    # Data loading code
-    train_index_list = np.arange(0,60,1)  
-    valid_index_list = np.arange(60,80,1) # just to monitor the validation loss, will not be used to select any hyperparameters
-    train_batch_list = None
-    valid_batch_list = None
-
-    dataset_train = build_data_CMR(args, args.dataset_name, 
-                    train_batch_list,  train_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
-                    shuffle = True,
-                    augment_list = args.augment_list, augment_frequency = args.augment_frequency,
-                    return_arrays_or_dictionary = 'dictionary')
-    
-    dataset_valid = build_data_CMR(args, args.dataset_name,
-                    valid_batch_list, valid_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
-                    shuffle = False,
-                    augment_list = [], augment_frequency = -0.1,
-                    return_arrays_or_dictionary = 'dictionary')
-
-    data_loader_train = torch.utils.data.DataLoader(dataset_train, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count()) 
-    data_loader_valid = torch.utils.data.DataLoader(dataset_valid, batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0)# cpu_count())
-
     # build model
     model = Unet2D_LSTM(init_dim = 16,
         channels = 1,
@@ -118,6 +99,51 @@ def run(args):
 
     """""""""""""""""""""""""""""""""""""""TRAINING"""""""""""""""""""""""""""""""""""""""
     if args.train_mode == True:
+        """Load Data from different sources"""
+        assert len(args.dataset_names) == len(args.dataset_split), "The length of dataset_names and dataset_split should be the same"
+        # define the dataset list for train and validation, separately
+        for i in range(len(args.dataset_split)):
+            if args.dataset_split[i][0].shape[0] > 0:
+                args.dataset_train.append([args.dataset_names[i][0], args.dataset_names[i][1], args.dataset_split[i][0]])
+            if args.dataset_split[i][1].shape[0] > 0:
+                args.dataset_valid.append([args.dataset_names[i][0], args.dataset_names[i][1], args.dataset_split[i][1]])
+        print('now print the dataset_train and dataset_valid')
+        print(args.dataset_train)
+        print(args.dataset_valid)
+
+        dataset_train = []
+        dataset_valid = []
+        # do trianing
+        for i in range(len(args.dataset_train)):
+            current_dataset_name = args.dataset_train[i][0]
+            current_slice_type = args.dataset_train[i][1]
+            current_index_list = args.dataset_train[i][2]
+            dataset_train.append(build_data_CMR(args, current_dataset_name, 
+                        None,  current_index_list, 
+                        full_or_nonzero_slice = args.full_or_nonzero_slice,
+                        shuffle = True,
+                        augment_list = args.augment_list, augment_frequency = args.augment_frequency,
+                        return_arrays_or_dictionary = 'dictionary', ))
+        # do validation
+        for i in range(len(args.dataset_valid)):
+            current_dataset_name = args.dataset_valid[i][0]
+            current_slice_type = args.dataset_valid[i][1]
+            current_index_list = args.dataset_valid[i][2]
+            dataset_valid.append(build_data_CMR(args, current_dataset_name,
+                        None, current_index_list, 
+                        full_or_nonzero_slice = args.full_or_nonzero_slice,
+                        shuffle = False,
+                        augment_list = [], augment_frequency =-0.1,
+                        return_arrays_or_dictionary = 'dictionary',))
+            
+        '''Set up data loader for training and validation set'''
+        data_loader_train = []
+        data_loader_valid = []
+        for i in range(len(dataset_train)):
+            data_loader_train.append(torch.utils.data.DataLoader(dataset_train[i], batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0))
+        for i in range(len(dataset_valid)):
+            data_loader_valid.append(torch.utils.data.DataLoader(dataset_valid[i], batch_size = 1, shuffle = False, pin_memory = True, num_workers = 0))
+
         # freeze the encoder part
         freeze_list = ["conv_blocks"]
         freeze_keys = []
@@ -145,7 +171,6 @@ def run(args):
         else:
             print('new train')
 
-
         # train loop
         training_log = []
         valid_loss = np.inf; valid_ce_loss = np.inf; valid_dice_loss = np.inf
@@ -159,12 +184,12 @@ def run(args):
             print('learning rate now: ', optimizer.param_groups[0]['lr'])
 
             # train
-            train_loss,  train_ce_loss, train_dice_loss = train_loop(args, model, data_loader_train, optimizer)
-            
-            # on_epoch_end
-            dataset_train.on_epoch_end()
+            train_results = train_loop(args, model, data_loader_train, optimizer)
 
-            print('end of epoch: ', epoch, 'average loss: ', train_loss, 'ce_loss: ', train_ce_loss, 'dice_loss: ', train_dice_loss)
+            # on_epoch_end:
+            for k in range(len(dataset_train)):
+               dataset_train[k].on_epoch_end()
+            print('end of epoch: ', epoch, 'average loss: ', train_results[0], 'ce_loss: ', train_results[1], 'dice_loss: ', train_results[2])
 
             # save model
             if epoch % args.save_model_file_every_N_epoch == 0:
@@ -177,17 +202,17 @@ def run(args):
 
             # validate
             if epoch % args.save_model_file_every_N_epoch == 0 and args.validation == True:
-                valid_loss, valid_ce_loss, valid_dice_loss = valid_loop(args, model, data_loader_valid)
-                print('validation loss: ', valid_loss, 'valid ce_loss: ', valid_ce_loss, 'valid dice_loss: ', valid_dice_loss)
+                valid_results = valid_loop(args, model, data_loader_valid)
+                print('validation loss: ', valid_results[0], 'ce_loss: ', valid_results[1], 'dice_loss: ', valid_results[2])
 
             # save_log
-            training_log.append([epoch, train_loss, train_ce_loss, train_dice_loss, optimizer.param_groups[0]['lr'], valid_loss, valid_ce_loss, valid_dice_loss])
+            training_log.append([epoch, train_results[0], train_results[1], train_results[2], optimizer.param_groups[0]['lr'], valid_results[0], valid_results[1], valid_results[2]])
             training_log_df = pd.DataFrame(training_log, columns = ['epoch', 'train_loss', 'train_ce_loss', 'train_dice_loss', 'lr', 'valid_loss', 'valid_ce_loss', 'valid_dice_loss'])
             training_log_df.to_excel(os.path.join(args.output_dir, 'logs', 'training_log.xlsx'), index = False)
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,50,1)
+        pred_index_list = np.arange(0,53,1)
         pred_batch_list = None
         
         dataset_pred = build_data_CMR(args, 'HFpEF',

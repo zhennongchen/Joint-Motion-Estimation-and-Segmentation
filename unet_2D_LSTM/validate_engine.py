@@ -22,35 +22,43 @@ def valid_loop(args, model, data_loader_valid):
     ce_loss_list = []
     dice_loss_list = []
 
-    for batch_idx, batch in enumerate(data_loader_valid, 1):
-        with torch.cuda.amp.autocast():
-            
-            # image
-            batch_image = rearrange(batch['image'], 'b c h w d -> (b d) c h w')
-            image_input = torch.clone(batch_image).to(torch.float16).to("cuda")
+    assert len(data_loader_valid) == len(args.dataset_valid)
 
-            # segmentation
-            batch_seg = rearrange(batch['mask'], 'b c h w d -> (b d) c h w')
+    # iterate over dataset
+    for i in range(len(data_loader_valid)):
+        current_data_loader = data_loader_valid[i] # this is an iterable
+        current_dataset_name = args.dataset_valid[i][0]
+        current_slice_type = args.dataset_valid[i][1]
+        print('in validation: current slice type: ', current_slice_type, ' current dataset name: ', current_dataset_name)
 
-            seg_pred = model(image_input)
+        for batch_idx, batch in enumerate(current_data_loader, 1):
+            with torch.cuda.amp.autocast():
+                
+                # image
+                batch_image = rearrange(batch['image'], 'b c h w d -> (b d) c h w')
+                image_input = torch.clone(batch_image).to(torch.float16).to("cuda")
 
-            # CE loss
-            seg_gt_CE = torch.clone(batch_seg).to("cuda")
-            ce_loss = seg_criterion(seg_pred, seg_gt_CE.squeeze(1).long()) 
+                # segmentation
+                batch_seg = rearrange(batch['mask'], 'b c h w d -> (b d) c h w').to("cuda")
 
-            # Dice loss
-            dice_loss = ff.customized_dice_loss(seg_pred, torch.clone(batch_seg).to("cuda").long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
+                seg_pred = model(image_input)
 
-            loss = args.loss_weight[0] * ce_loss + args.loss_weight[1] * dice_loss
+                # CE loss
+                ce_loss = seg_criterion(seg_pred, torch.clone(batch_seg).squeeze(1).long()) 
 
+                # Dice loss
+                dice_loss = ff.customized_dice_loss(seg_pred,torch.clone(batch_seg).squeeze(1).long(), num_classes = args.num_classes, exclude_index = args.turn_zero_seg_slice_into)
 
-        loss_list.append(loss.item())
-        ce_loss_list.append(ce_loss.item())
-        dice_loss_list.append(dice_loss.item())
-        torch.cuda.synchronize()
+                loss = args.loss_weight[0] * ce_loss + args.loss_weight[1] * dice_loss
 
 
-    return sum(loss_list) / len(loss_list), sum(ce_loss_list) / len(ce_loss_list), sum(dice_loss_list) / len(dice_loss_list)
+            loss_list.append(loss.item())
+            ce_loss_list.append(ce_loss.item())
+            dice_loss_list.append(dice_loss.item())
+            torch.cuda.synchronize()
+
+
+    return [sum(loss_list) / len(loss_list), sum(ce_loss_list) / len(ce_loss_list), sum(dice_loss_list) / len(dice_loss_list)]
 
 
 def pred_save(batch, output,args, save_folder):

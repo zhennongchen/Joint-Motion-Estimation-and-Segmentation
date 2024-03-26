@@ -209,7 +209,7 @@ def run(args):
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,50,1)
+        pred_index_list = np.arange(0,53,1)
         pred_batch_list = None
         
         dataset_pred = build_data_CMR(args, 'HFpEF',
