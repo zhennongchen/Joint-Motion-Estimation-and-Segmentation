@@ -14,52 +14,62 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 
+## important: DICE loss
+def customized_dice_loss(pred, mask, num_classes, exclude_index = 10):
+    # set valid mask to exclude pixels either equal to exclude index 
+    valid_mask = (mask != exclude_index) 
 
-def customized_dice_loss(pred, mask, num_classes, add_softmax = True, exclude_index = 10):
+    # one-hot encode the mask
+    one_hot_mask = F.one_hot(mask, num_classes = exclude_index + 1).permute(0,3,1,2)
 
-    if add_softmax == True:
-        pred_softmax = F.softmax(pred,dim = 1)
-  
-    # pred_softmax = rearrange(pred_softmax,'b c h w -> 1 c (h w b)')
+    # softmax the prediction
+    pred_softmax = F.softmax(pred,dim = 1)
 
-    dice_loss = 0.0
+    pred_probs_masked = pred_softmax[:,1:num_classes,...] * valid_mask.unsqueeze(1)  # Exclude background class
+    ground_truth_one_hot_masked = one_hot_mask[:,1:num_classes,...] * valid_mask.unsqueeze(1)
+        
+    # Calculate intersection and union, considering only the included pixels
+    intersection = torch.sum(pred_probs_masked * ground_truth_one_hot_masked, dim=(0,2, 3))
+    union = torch.sum(pred_probs_masked, dim = (0,2,3)) + torch.sum(ground_truth_one_hot_masked, dim=(0,2, 3))
+        
+    # Compute Dice score
+    dice_score = (2.0 * intersection + 1e-6) / (union + 1e-6)  # Adding a small epsilon to avoid division by zero
+        
+    # Dice loss is 1 minus Dice score
+    dice_loss = 1 - dice_score
 
-    for cls in range(1,num_classes):
-        # Skip the excluded class
-        if cls == exclude_index:
-            continue
+    return torch.mean(dice_loss)
+# def customized_dice_loss(pred, mask, num_classes, exclude_index = 10):
+#     # set valid mask to exclude pixels either equal to exclude index 
+#     valid_mask = (mask != exclude_index) 
+#     # print('valid mask shape: ', valid_mask.shape)
 
-        # Get predictions and ground truth for the current class
-        pred_cls = pred_softmax[:, cls, :]
+#     # one-hot encode the mask
+#     one_hot_mask = F.one_hot(mask, num_classes = exclude_index + 1)#.permute(0,3,1,2)
+#     one_hot_mask = rearrange(one_hot_mask, 'b c h w d i -> b (c i) h w d')
 
-        if np.isnan(torch.sum(torch.clone(pred_cls)).item()) == True:
-            print('NAN!!sum of pred and sum of pred_softmax: ', torch.sum(pred_cls).item(), torch.sum(pred_softmax).item())
-            raise ValueError('NAN in pred_cls')
+#     # softmax the prediction
+#     pred_softmax = F.softmax(pred,dim = 1)
 
-        mask_cls = (mask == cls).float()  # Convert to float for multiplication
+#     # print('pred_softmax shape: ', pred_softmax.shape)
+#     # print('one_hot_mask shape: ', one_hot_mask.shape)
 
-        pred_cls = pred_cls.reshape(-1)
-        mask_cls = mask_cls.reshape(-1)
-        # print('before mask, pred_cls sum: ', torch.sum(pred_cls).item(), ' mask_cls sum: ', torch.sum(mask_cls).item())
+#     pred_probs_masked = pred_softmax[:,1:num_classes,...] * valid_mask.unsqueeze(1)  # Exclude background class
+#     ground_truth_one_hot_masked = one_hot_mask[:,1:num_classes,...] * valid_mask.unsqueeze(1)
+        
+#     # Calculate intersection and union, considering only the included pixels
+#     intersection = torch.sum(pred_probs_masked * ground_truth_one_hot_masked, dim=(0,2, 3))
+#     union = torch.sum(pred_probs_masked, dim = (0,2,3)) + torch.sum(ground_truth_one_hot_masked, dim=(0,2, 3))
+        
+#     # Compute Dice score
+#     dice_score = (2.0 * intersection + 1e-6) / (union + 1e-6)  # Adding a small epsilon to avoid division by zero
+        
+#     # Dice loss is 1 minus Dice score
+#     dice_loss = 1 - dice_score
 
-        # Ignore the excluded slice
-        valid_mask = (mask != exclude_index)
-        valid_mask = valid_mask.reshape(-1)
+#     return torch.mean(dice_loss)
 
-        pred_cls = pred_cls * valid_mask
-        mask_cls = mask_cls * valid_mask
-        # print('after mask, pred_cls sum: ', torch.sum(pred_cls).item(), ' mask_cls sum: ', torch.sum(mask_cls).item()) 
 
-        # Calculate intersection and union
-        intersection = torch.sum(pred_cls * mask_cls)
-        union = torch.sum(pred_cls) + torch.sum(mask_cls)
-
-        # Compute Dice score for this class and accumulate
-        dice_score_cls = (2.0 * intersection + 1e-6) / (union + 1e-6)
-        # print('intersection: ', intersection.item(), ' union: ', union.item(), ' dice_score_cls: ', dice_score_cls.item())
-        dice_loss += dice_score_cls
-
-    return 1- (dice_loss / (num_classes - 1))  # Divide by the number of classes
 
 
 def huber_loss(x):
