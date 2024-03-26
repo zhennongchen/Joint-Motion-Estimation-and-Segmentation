@@ -65,13 +65,13 @@ def train_loop(args, model, data_loader_train, optimizer):
                 if batch_idx % 50 == 0 and batch_idx != 0:
                     print('in this iteration loss: ', np.round(sum(loss_list) / len(loss_list),3), ' ce loss: ', np.round(sum(ce_loss_list) / len(ce_loss_list),3), ' dice loss: ', np.round(sum(dice_loss_list) / len(dice_loss_list),3))
         
-                # pred_softmax = F.softmax(seg_pred,dim = 1)
-                # # print('pred_softmax shape: ', pred_softmax.shape)
-                # pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
-                # # print('pred_seg_softmax shape: ', pred_seg_softmax.shape)
-                # print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique in seg_gt_CE: ', torch.unique(seg_gt_CE))
-                # if np.unique(pred_seg_softmax).shape[0] < 2:
-                #     start_to_have_zero = True
+                    pred_softmax = F.softmax(seg_pred,dim = 1)
+                    # # print('pred_softmax shape: ', pred_softmax.shape)
+                    pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
+                    # # print('pred_seg_softmax shape: ', pred_seg_softmax.shape)
+                    print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique in seg_gt_CE: ', torch.unique(batch_seg))
+                    # if np.unique(pred_seg_softmax).shape[0] < 2:
+                    #     start_to_have_zero = True
         
             loss_list.append(loss.item())
             ce_loss_list.append(ce_loss.item())

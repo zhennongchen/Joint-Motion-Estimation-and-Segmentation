@@ -173,13 +173,13 @@ def run(args):
 
         # train loop
         training_log = []
-        valid_loss = np.inf; valid_ce_loss = np.inf; valid_dice_loss = np.inf
+        valid_results = [np.inf] * 3
         
         for epoch in range(args.start_epoch, args.start_epoch + args.epochs):
             print('training epoch:', epoch)
 
             # update learning rate
-            if epoch % args.lr_update_every_N_epoch == 0:
+            if epoch % args.lr_update_every_N_epoch == 0: 
                 optimizer.param_groups[0]['lr'] *= args.lr_decay_gamma
             print('learning rate now: ', optimizer.param_groups[0]['lr'])
 

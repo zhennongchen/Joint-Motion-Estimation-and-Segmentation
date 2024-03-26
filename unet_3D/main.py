@@ -170,7 +170,7 @@ def run(args):
 
         # train loop
         training_log = []
-        valid_loss = np.inf; valid_ce_loss = np.inf; valid_dice_loss = np.inf
+        valid_results = [np.inf] * 3
         
         for epoch in range(args.start_epoch, args.start_epoch + args.epochs):
             print('training epoch:', epoch)
