@@ -13,7 +13,6 @@ import Joint_motion_seg_estimate_CMR.functions_collection as ff
 def valid_loop(args, model, data_loader_valid):
     # define loss
     if args.turn_zero_seg_slice_into is not None:
-        print('ignore index: ', args.turn_zero_seg_slice_into)
         seg_criterion = torch.nn.CrossEntropyLoss(ignore_index = args.turn_zero_seg_slice_into)
     else:
         seg_criterion = torch.nn.CrossEntropyLoss()
@@ -52,12 +51,11 @@ def valid_loop(args, model, data_loader_valid):
 
                 loss = args.loss_weight[0] * ce_loss + args.loss_weight[1] * dice_loss
 
-                # # seg_pred_softmax = rearrange(torch.clone(seg_pred), 'b c h w d -> (b d) c h w')
-                # pred_softmax = F.softmax(seg_pred,dim = 1)
-                # # print('pred_softmax shape: ', pred_softmax.shape)
-                # pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
-                # # print('pred_seg_softmax shape: ', pred_seg_softmax.shape)
-                # # print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax))
+                # seg_pred_softmax = rearrange(torch.clone(seg_pred), 'b c h w d -> (b d) c h w')
+                pred_softmax = F.softmax(seg_pred,dim = 1)
+                # print('pred_softmax shape: ', pred_softmax.shape)
+                pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
+                print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique batch_seg: ', np.unique(batch_seg.cpu().numpy()))
 
             loss_list.append(loss.item())
             ce_loss_list.append(ce_loss.item())

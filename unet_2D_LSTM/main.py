@@ -33,21 +33,20 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda', help='device to use for training / testing')
     parser.add_argument('--seed', default=1234, type=int)   
     
-    
     ########## important parameters
-    trial_name = 'unet2D_LSTM_trial2_alldata'
+    trial_name = 'unet2D_LSTM_alldata_fiveshot'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 90
+    pretrained_model_epoch = None
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
-    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet2D_LSTM_trial2_alldata', 'models', 'model-80.pth'), help='path where to save, empty for no saving')
-    if pretrained_model_epoch == None:
-        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
-    else:
-        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet2D_LSTM_trial2_alldata', 'models', 'model-90.pth'), help='path where to save, empty for no saving')
+    # if pretrained_model_epoch == None:
+    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    # else:
+    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=False)
+    parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
@@ -65,8 +64,14 @@ def get_args_parser():
     parser.add_argument('--accum_iter', default = 5, type=float)
     
     # Dataset parameters
+    five_shot_index = [29,48,15,26,24]
+    arr = np.arange(0,53,1)
+    train_array = arr[five_shot_index]
+    valid_array = np.delete(arr, five_shot_index)
+    print(train_array, valid_array)
+
     parser.add_argument('--dataset_names', default=[['STACOM', 'sax'], ['ACDC', 'sax'], ['HFpEF', 'sax'] ], type=list)
-    parser.add_argument('--dataset_split',default=[[np.arange(0,100,1) , np.arange(0,0,1)], [np.arange(0,100,1) , np.arange(100,150,1)], [np.arange(0,0,1) , np.arange(0,0,1)]], type=list) # [training_data, validation_data]. for LAX: 0-60 case: 0-224, 60-80: 224-297, 80-100: 297-376
+    parser.add_argument('--dataset_split',default=[[np.arange(0,0,1) , np.arange(0,0,1)], [np.arange(0,0,1) , np.arange(0,0,1)], [train_array, valid_array]], type=list) 
     parser.add_argument('--dataset_train', default= [], type = list)
     parser.add_argument('--dataset_valid', default= [], type = list)
 

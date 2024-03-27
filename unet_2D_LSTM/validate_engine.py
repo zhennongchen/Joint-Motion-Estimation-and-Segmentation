@@ -13,7 +13,6 @@ import Joint_motion_seg_estimate_CMR.functions_collection as ff
 def valid_loop(args, model, data_loader_valid):
      # define loss
     if args.turn_zero_seg_slice_into is not None:
-        print('ignore index: ', args.turn_zero_seg_slice_into, ' in train')
         seg_criterion = torch.nn.CrossEntropyLoss(ignore_index = 10)
     else:
         seg_criterion = torch.nn.CrossEntropyLoss()
