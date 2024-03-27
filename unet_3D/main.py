@@ -30,12 +30,12 @@ def get_args_parser():
 
     # Custom parser 
     parser.add_argument('--device', default='cuda', help='device to use for training / testing')
-    parser.add_argument('--seed', default=1234, type=int)   
+    parser.add_argument('--seed', default=1100, type=int)   
     
     ########## important parameters
     trial_name = 'unet3D_alldata'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 280
+    pretrained_model_epoch = 293
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
@@ -45,7 +45,7 @@ def get_args_parser():
     else:
         parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=True)
+    parser.add_argument('--train_mode', default=False)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
@@ -57,10 +57,10 @@ def get_args_parser():
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
     parser.add_argument('--epochs', default= 100, type=int)
     parser.add_argument('--save_model_file_every_N_epoch', default=1, type = int) 
-    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
+    parser.add_argument('--lr', type=float, default=1e-5, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
     parser.add_argument('--lr_decay_gamma', default=0.95)
-    parser.add_argument('--accum_iter', default=1, type=float)
+    parser.add_argument('--accum_iter', default=5, type=float)
     
     # Dataset parameters
     parser.add_argument('--dataset_names', default=[['STACOM', 'sax'], ['ACDC', 'sax'], ['HFpEF', 'sax'] ], type=list)
@@ -178,6 +178,7 @@ def run(args):
             # update learning rate
             if epoch % args.lr_update_every_N_epoch == 0:
                 optimizer.param_groups[0]['lr'] *= args.lr_decay_gamma
+            optimizer.param_groups[0]['lr'] = args.lr
             print('learning rate now: ', optimizer.param_groups[0]['lr'])
 
             # train

@@ -6,19 +6,19 @@ import nibabel as nb
 from skimage.measure import regionprops
 import numpy as np
 import shutil
-import sam_cmr.functions_collection as ff
-import sam_cmr.Defaults as Defaults
+import Joint_motion_seg_estimate_CMR.functions_collection as ff
+import Joint_motion_seg_estimate_CMR.Defaults as Defaults
 
 cg = Defaults.Parameters()
 
 # remove scatter
-main_folder = os.path.join(cg.sam_dir, 'models', 'unet2D_LSTM_trial2_alldata','predicts')
+main_folder = os.path.join(cg.sam_dir, 'models', 'unet3D_alldata','predicts_HFpEF')
 patients = ff.find_all_target_files(['*'], main_folder)
 
 for i in range(0, len(patients)):
     # print(patients[i])
     patient = patients[i]
-    folder = os.path.join(patient, 'epoch-70')
+    folder = os.path.join(patient, 'epoch-293')
 
     pred_files = ff.find_all_target_files(['pred*'], folder)
 
@@ -32,7 +32,7 @@ for i in range(0, len(patients)):
             print('patient:', patient, 'timeframe:', j, 'need to remove scatter')
 
             # nb.save(nb.Nifti1Image(new_pred, nb.load(pred_files[j]).affine), pred_files[j])
-        save_folder = os.path.join(patient,'epoch-70-processed'); os.makedirs(save_folder, exist_ok = True)
+        save_folder = os.path.join(patient,os.path.basename(folder) + '-processed'); os.makedirs(save_folder, exist_ok = True)
         nb.save(nb.Nifti1Image(new_pred, nb.load(pred_files[j]).affine), os.path.join(save_folder, os.path.basename(pred_files[j])))
 
 

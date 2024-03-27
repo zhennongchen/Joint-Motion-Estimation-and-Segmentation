@@ -38,18 +38,17 @@ def calculate_metric( gt_files, dataset, start_slice, end_slice):
         
         gt_file = gt_files[slice_num]
         pred_file = os.path.join(patient_folder, 'pred_seg_' + str(slice_num) + '.nii.gz')
+        pred_file2 = os.path.join(main_folder, patient_id, 'epoch-' + str(epoch) + '-processed', 'pred_seg_' + str(slice_num) + '.nii.gz')
 
         gt = nb.load(gt_file).get_fdata()
-        pred = nb.load(pred_file).get_fdata()
+        pred = np.round(nb.load(pred_file).get_fdata())
+        pred2 = np.round(nb.load(pred_file2).get_fdata())  # for HD calculation
 
         gt = np.round(gt)
         # # for ACDC
         if dataset == 'ACDC' or dataset == 'HFpEF':
             gt[gt!=2] = 0
             gt[gt==2] = 1
-
-        pred = np.round(pred)
-
         # set the gt timeframe without manual segmentation as 10
         for t in range(0, gt.shape[-1]):
             if np.sum(gt[:,:,t] == 1) == 0:
@@ -57,7 +56,7 @@ def calculate_metric( gt_files, dataset, start_slice, end_slice):
         
         # calculate dice
         dice = ff.np_categorical_dice(pred, gt, target_class = 1, exclude_class = 10)
-        hd = ff.HD(pred,gt, pixel_size = 1, target_class = 1, exclude_class = 10, max_or_mean = 'max')
+        hd = ff.HD(pred2, gt, pixel_size = 1, target_class = 1, exclude_class = 10, max_or_mean = 'max')
 
         all_dice.append(dice)
         all_hd.append(hd)
@@ -93,11 +92,11 @@ dataset = 'HFpEF'
 
 # define patient list
 patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/HFpEF_Patient_List_training_testing.xlsx')
-index_list = np.arange(0,50,1)
+index_list = np.arange(0,53,1)
 patient_id_list,_,_,_ ,_,_,_ ,_ ,_, _ ,_, _ = Build_list.__build__(patient_list_file, batch_list = None, index_list = index_list)
 
-main_folder = os.path.join(defaults.sam_dir, 'models/unet2D_LSTM_trial2_alldata/predicts_HFpEF')
-epoch = 70
+main_folder = os.path.join(defaults.sam_dir, 'models/unet3D_alldata/predicts_HFpEF')
+epoch = 293
 
 # slice inclusion in the calculation
 if dataset == 'STACOM':
@@ -182,6 +181,6 @@ result.append(['std', all_dice_std, base_dice_std, mid_dice_std, apex_dice_std, 
 
 ff.make_folder([os.path.join(os.path.dirname(main_folder),'results')])
 df = pd.DataFrame(result, columns = ['patient_id', 'all_dice', 'base_dice', 'mid_dice', 'apex_dice', 'all_hd', 'base_hd', 'mid_hd', 'apex_hd', 'base_segment', 'mid_segment', 'apex_segment'])
-df.to_excel(os.path.join(os.path.dirname(main_folder),'results', 'quantitative_test_epoch_' + str(epoch) + '.xlsx'))
+df.to_excel(os.path.join(os.path.dirname(main_folder),'results', 'HFpEF_test_epoch_' + str(epoch) + '.xlsx'))
 
 

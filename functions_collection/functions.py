@@ -39,38 +39,6 @@ def customized_dice_loss(pred, mask, num_classes, exclude_index = 10):
     dice_loss = 1 - dice_score
 
     return torch.mean(dice_loss)
-# def customized_dice_loss(pred, mask, num_classes, exclude_index = 10):
-#     # set valid mask to exclude pixels either equal to exclude index 
-#     valid_mask = (mask != exclude_index) 
-#     # print('valid mask shape: ', valid_mask.shape)
-
-#     # one-hot encode the mask
-#     one_hot_mask = F.one_hot(mask, num_classes = exclude_index + 1)#.permute(0,3,1,2)
-#     one_hot_mask = rearrange(one_hot_mask, 'b c h w d i -> b (c i) h w d')
-
-#     # softmax the prediction
-#     pred_softmax = F.softmax(pred,dim = 1)
-
-#     # print('pred_softmax shape: ', pred_softmax.shape)
-#     # print('one_hot_mask shape: ', one_hot_mask.shape)
-
-#     pred_probs_masked = pred_softmax[:,1:num_classes,...] * valid_mask.unsqueeze(1)  # Exclude background class
-#     ground_truth_one_hot_masked = one_hot_mask[:,1:num_classes,...] * valid_mask.unsqueeze(1)
-        
-#     # Calculate intersection and union, considering only the included pixels
-#     intersection = torch.sum(pred_probs_masked * ground_truth_one_hot_masked, dim=(0,2, 3))
-#     union = torch.sum(pred_probs_masked, dim = (0,2,3)) + torch.sum(ground_truth_one_hot_masked, dim=(0,2, 3))
-        
-#     # Compute Dice score
-#     dice_score = (2.0 * intersection + 1e-6) / (union + 1e-6)  # Adding a small epsilon to avoid division by zero
-        
-#     # Dice loss is 1 minus Dice score
-#     dice_loss = 1 - dice_score
-
-#     return torch.mean(dice_loss)
-
-
-
 
 def huber_loss(x):
     bsize, csize, height, width = x.size()
@@ -441,10 +409,11 @@ def XX_to_ID_00XX(num):
         return 'ID_' + str(num)
 
 
-# function: remove scattered regions in a binary image
+# function: remove disconnected regions in a binary image
 def remove_scatter(img,target_label):
     new_img = np.copy(img)
     new_img[new_img == target_label] = 100
+    need_to_remove = False
     for i in range(0,img.shape[2]):
         a = img[:,:,i]
         # check if there's label 1 in this slice
@@ -453,8 +422,11 @@ def remove_scatter(img,target_label):
         labeled_image = label(a == target_label)
         regions = regionprops(labeled_image)
         region_sizes = [region.area for region in regions]
-
-        # Step 3: Find Largest Region Label
+      
+        if len(region_sizes) > 1:
+            need_to_remove = True
+        
+          # Step 3: Find Largest Region Label
         largest_region_label = np.argmax(region_sizes) + 1  # Adding 1 because labels start from 1
 
         # Step 4: Create Mask for Largest Region
@@ -467,7 +439,7 @@ def remove_scatter(img,target_label):
         new_slice[result_image==target_label] = target_label
         new_slice[new_slice == 100] = 0
         new_img[:,:,i] = new_slice
-    return new_img
+    return new_img, need_to_remove
 
 # function: split train and val data
 def split_train_val(X,Y, cross_val_batch_num, val_batch_index, save_split_file = None):
