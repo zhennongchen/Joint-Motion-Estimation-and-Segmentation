@@ -34,19 +34,19 @@ def get_args_parser():
     parser.add_argument('--seed', default=1234, type=int)   
     
     ########## important parameters
-    trial_name = 'unet2D_LSTM_alldata_fiveshot'
+    trial_name = 'unet2D_LSTM_alldata_tenshot'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = None
+    pretrained_model_epoch = 10
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
-    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet2D_LSTM_trial2_alldata', 'models', 'model-90.pth'), help='path where to save, empty for no saving')
-    # if pretrained_model_epoch == None:
-    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
-    # else:
-    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet2D_LSTM_trial2_alldata', 'models', 'model-90.pth'), help='path where to save, empty for no saving')
+    if pretrained_model_epoch == None:
+        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    else:
+        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=True)
+    parser.add_argument('--train_mode', default=False)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
@@ -220,6 +220,7 @@ def run(args):
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
         pred_index_list = np.arange(0,53,1)
         pred_batch_list = None
+        save_folder_name = 'predicts_HFpEF'
         
         dataset_pred = build_data_CMR(args, 'HFpEF',
                     pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
@@ -251,7 +252,7 @@ def run(args):
 
                 output =  model(image_input)
 
-                save_folder = os.path.join(args.output_dir, 'predicts_HFpEF'); ff.make_folder([save_folder])
+                save_folder = os.path.join(args.output_dir, save_folder_name); ff.make_folder([save_folder])
                 pred_save(batch, output,args, save_folder)
                
 

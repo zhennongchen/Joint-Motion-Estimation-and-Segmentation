@@ -95,8 +95,8 @@ patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/HFpEF_Pati
 index_list = np.arange(0,53,1)
 patient_id_list,_,_,_ ,_,_,_ ,_ ,_, _ ,_, _ = Build_list.__build__(patient_list_file, batch_list = None, index_list = index_list)
 
-main_folder = os.path.join(defaults.sam_dir, 'models/unet3D_alldata/predicts_HFpEF')
-epoch = 293
+main_folder = os.path.join(defaults.sam_dir, 'models/unet2D_LSTM_alldata_tenshot/predicts_HFpEF')
+epoch = 10
 
 # slice inclusion in the calculation
 if dataset == 'STACOM':

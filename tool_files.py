@@ -12,7 +12,7 @@ defaults = Defaults.Parameters()
 
 
 # delete files
-patient_list = ff.find_all_target_files(['*/epoch-70-p*'],os.path.join(defaults.sam_dir,'models/unet2D_LSTM_trial2_alldata/predicts_HFpEF'))
+patient_list = ff.find_all_target_files(['*'],os.path.join(defaults.sam_dir,'models/unet2D_LSTM_trial2_alldata/predicts_HFpEF'))
 for patient in patient_list:
     print(patient)
     shutil.rmtree(patient)
