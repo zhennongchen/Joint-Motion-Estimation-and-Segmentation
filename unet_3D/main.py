@@ -33,9 +33,9 @@ def get_args_parser():
     parser.add_argument('--seed', default=1100, type=int)   
     
     ########## important parameters
-    trial_name = 'unet3D_alldata_tenshot'
+    trial_name = 'unet3D_alldata_fiveshot'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 39
+    pretrained_model_epoch = 50
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
@@ -76,7 +76,7 @@ def get_args_parser():
 
     parser.add_argument('--img_size', default=128, type=int)    
     parser.add_argument('--num_classes', type=int, default=2)  ######## important!!!!
-    parser.add_argument('--full_or_nonzero_slice', default='nonzero') # full means all the slices, nonzero means only the slices with manual segmentation at both ED and ES, loose means the slices with manual segmentation at either ED or ES or both
+    parser.add_argument('--full_or_nonzero_slice', default='loose') # full means all the slices, nonzero means only the slices with manual segmentation at both ED and ES, loose means the slices with manual segmentation at either ED or ES or both
     parser.add_argument('--turn_zero_seg_slice_into', default=10, type=int)
     parser.add_argument('--augment_list', default=[('brightness' , None), ('contrast', None), ('sharpness', None), ('flip', None), ('rotate', [-20,20]), ('translate', [-5,5]), ('random_crop', [-5,5])], type=list)
     parser.add_argument('--augment_frequency', default=0.5, type=float)
@@ -216,11 +216,11 @@ def run(args):
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,53,1)
+        pred_index_list = np.arange(0,10,1)
         pred_batch_list = None
-        save_folder_name = 'predicts_HFpEF'
+        save_folder_name = 'predicts_HFpEF_multiT-loose'
         
-        dataset_pred = build_data_CMR(args, 'HFpEF',
+        dataset_pred = build_data_CMR(args, 'HFpEF_multiT',
                     pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = False,
                     augment_list = [], augment_frequency = -0.1,

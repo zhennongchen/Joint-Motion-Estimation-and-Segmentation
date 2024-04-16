@@ -12,7 +12,7 @@ import Joint_motion_seg_estimate_CMR.Defaults as Defaults
 cg = Defaults.Parameters()
 
 # remove scatter
-main_folder = os.path.join(cg.sam_dir, 'models', 'unet2D_LSTM_alldata_fiveshot','predicts_HFpEF-loose')
+main_folder = os.path.join(cg.sam_dir, 'models', 'unet2D_LSTM_alldata_fiveshot','predicts_HFpEF_multiT-loose')
 patients = ff.find_all_target_files(['*'], main_folder)
 
 for i in range(0, len(patients)):

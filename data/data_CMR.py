@@ -27,6 +27,10 @@ def build_data_CMR(args,dataset_name, train_batch_list, train_index_list, full_o
         data_path = os.path.join(defaults.sam_dir,'data/HFpEF_database/temporal')
         patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/HFpEF_Patient_List_training_testing.xlsx')
     
+    if dataset_name == 'HFpEF_multiT':
+        data_path = os.path.join(defaults.sam_dir,'data/HFpEF_database/temporal')
+        patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/HFpEF_multiT_Patient_List_training_testing.xlsx')
+    
     ##### select train and valid dataset (using either batch_list or index_list, if not using one then set it to None)
 
     _,_,_,image_full_slice_file_list_train ,seg_full_slice_file_list_train ,image_nonzero_slice_file_list_train ,seg_nonzero_slice_file_list_train ,image_nonzero_slice_file_loose_list_train ,seg_nonzero_slice_file_loose_list_train, total_slice_num_list_train ,nonzero_slice_num_list_train, nonzero_slice_num_loose_list_train = Build_list.__build__(patient_list_file, batch_list = train_batch_list, index_list = train_index_list)
@@ -56,7 +60,7 @@ def build_data_CMR(args,dataset_name, train_batch_list, train_index_list, full_o
         relabel_LV = False 
         only_myo = False
         seg_include_lowest_pixel = 100 
-    elif dataset_name == 'HFpEF':
+    elif dataset_name == 'HFpEF' or dataset_name == 'HFpEF_multiT':
         relabel_LV = False
         only_myo = True
         seg_include_lowest_pixel = 1

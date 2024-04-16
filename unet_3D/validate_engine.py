@@ -103,7 +103,7 @@ def pred_save(batch, output,args, save_folder):
 
     affine = nb.load(original_image_file).affine
     original_image = nb.load(original_image_file).get_fdata()[:,:,slice_index,:]
-    original_seg = nb.load(original_seg_file).get_fdata()[:,:,slice_index,:]
+    original_seg = nb.load(original_seg_file).get_fdata()[:,:,slice_index,:]; original_seg = np.round(original_seg)
 
     patient_id = batch["patient_id"][0]
    
