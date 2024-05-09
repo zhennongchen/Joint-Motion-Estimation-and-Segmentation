@@ -55,7 +55,8 @@ def valid_loop(args, model, data_loader_valid):
                 pred_softmax = F.softmax(seg_pred,dim = 1)
                 # print('pred_softmax shape: ', pred_softmax.shape)
                 pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
-                print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique batch_seg: ', np.unique(batch_seg.cpu().numpy()))
+                if np.unique(pred_seg_softmax).shape[0] != 2 or (torch.unique(batch_seg).shape[0] != 2 and torch.unique(batch_seg).shape[0] != 3):
+                    print('WRONG in val!!! unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique in seg_gt_CE: ', torch.unique(batch_seg))
 
             loss_list.append(loss.item())
             ce_loss_list.append(ce_loss.item())

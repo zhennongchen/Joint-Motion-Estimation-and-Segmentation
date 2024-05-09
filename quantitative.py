@@ -46,7 +46,7 @@ def calculate_metric( gt_files, dataset, start_slice, end_slice):
 
         gt = np.round(gt)
         # # for ACDC
-        if dataset == 'ACDC' or dataset == 'HFpEF':
+        if dataset == 'ACDC' or dataset == 'HFpEF' or dataset == 'AS':
             gt[gt!=2] = 0
             gt[gt==2] = 1
         # set the gt timeframe without manual segmentation as 10
@@ -88,15 +88,15 @@ def calculate_metric( gt_files, dataset, start_slice, end_slice):
 
 defaults = Defaults.Parameters() 
 
-dataset = 'HFpEF'
+dataset = 'AS'
 
 # define patient list
-patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/HFpEF_multiT_Patient_List_training_testing.xlsx')
-index_list = np.arange(0,10,1)
+patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/AS_Patient_List_training_testing.xlsx')
+index_list = np.arange(0,38,1)
 patient_id_list,_,_,_ ,_,_,_ ,_ ,_, _ ,_, _ = Build_list.__build__(patient_list_file, batch_list = None, index_list = index_list)
 
-main_folder = os.path.join(defaults.sam_dir, 'models/unet2D_LSTM_alldata_fiveshot/predicts_HFpEF_multiT')
-epoch = 10
+main_folder = os.path.join(defaults.sam_dir, 'models/unet3D_STACOM_alldata/predicts_AS')
+epoch = 293
 
 # slice inclusion in the calculation
 if dataset == 'STACOM':
@@ -140,14 +140,16 @@ for i in range(0,len(patient_id_list)):
                     exclude_slice = [exclude_slice]
 
     # calculate metric
-    if dataset != 'HFpEF':
+    if dataset != 'HFpEF' and dataset != 'AS':
         metrics = calculate_metric(gt_files, dataset, 1 , len(gt_files) - 1)
     else:
         metrics1 = calculate_metric(gt_files, dataset, 0, len(gt_files) - 1)
         metrics2 = calculate_metric(gt_files, dataset, 0, len(gt_files))
         # compare base and apex dice, which one is higher?
         end = [len(gt_files) - 1 if (metrics1[3] >= metrics2[3] and metrics1[0] >= metrics2[0]) else len(gt_files)][0]
-      
+
+        # if dataset == 'AS':
+        #     end = len(gt_files)
         metrics = calculate_metric(gt_files, dataset, 0, end)
     all_dice, base_dice, mid_dice, apex_dice, all_hd, base_hd, mid_hd, apex_hd, base_slice, mid_slice, apex_slice = metrics
 
@@ -181,6 +183,6 @@ result.append(['std', all_dice_std, base_dice_std, mid_dice_std, apex_dice_std, 
 
 ff.make_folder([os.path.join(os.path.dirname(main_folder),'results')])
 df = pd.DataFrame(result, columns = ['patient_id', 'all_dice', 'base_dice', 'mid_dice', 'apex_dice', 'all_hd', 'base_hd', 'mid_hd', 'apex_hd', 'base_segment', 'mid_segment', 'apex_segment'])
-df.to_excel(os.path.join(os.path.dirname(main_folder),'results', 'multiT_HFpEF_test_epoch_' + str(epoch) + '.xlsx'))
+df.to_excel(os.path.join(os.path.dirname(main_folder),'results', 'AS_test_epoch_' + str(epoch) + '.xlsx'))
 
 

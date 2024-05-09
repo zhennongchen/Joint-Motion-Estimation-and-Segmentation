@@ -26,6 +26,8 @@ def train_loop(args, model, data_loader_train, optimizer):
 
     # iterate over datasets
     assert len(data_loader_train) == len(args.dataset_train)
+    previous_loss = np.inf
+
     for i in range(len(data_loader_train)):
         current_data_loader = data_loader_train[i] # this is an iterable
         current_dataset_name = args.dataset_train[i][0]
@@ -54,17 +56,22 @@ def train_loop(args, model, data_loader_train, optimizer):
 
                 loss = args.loss_weight[0] * ce_loss + args.loss_weight[1] * dice_loss
 
+                pred_softmax = F.softmax(seg_pred,dim = 1)
+                pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
+                if np.unique(pred_seg_softmax).shape[0] != 2 or (torch.unique(batch_seg).shape[0] != 2 and torch.unique(batch_seg).shape[0] != 3):
+                    print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique in seg_gt_CE: ', torch.unique(batch_seg))
+
+                if torch.isinf(loss).any() or torch.isnan(loss).any():
+                    print("Inf or NaN in loss, use previous loss!!!!")
+                    loss = previous_loss
+                previous_loss = loss
+
                 if batch_idx == 1 or batch_idx % args.accum_iter == 0 or batch_idx == len(current_data_loader):
                     loss.backward()
                     optimizer.step()
 
                 if batch_idx % 200  == 0:
                     print('in this iteration', batch_idx,' loss: ', np.round(loss.item(),3), ' ce_loss: ', np.round(ce_loss.item(),3), ' dice_loss: ', np.round(dice_loss.item(),3))
-            
-                pred_softmax = F.softmax(seg_pred,dim = 1)
-                pred_seg_softmax = pred_softmax.argmax(1).detach().cpu().numpy()
-                if np.unique(pred_seg_softmax).shape[0] != 2 or (torch.unique(batch_seg).shape[0] != 2 and torch.unique(batch_seg).shape[0] != 3):
-                    print('unique pred_seg_softmax: ', np.unique(pred_seg_softmax), ' unique in seg_gt_CE: ', torch.unique(batch_seg))
 
             loss_list.append(loss.item())
             ce_loss_list.append(ce_loss.item())
