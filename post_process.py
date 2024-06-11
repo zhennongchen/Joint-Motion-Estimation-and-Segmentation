@@ -12,13 +12,13 @@ import Joint_motion_seg_estimate_CMR.Defaults as Defaults
 cg = Defaults.Parameters()
 
 # remove scatter
-main_folder = os.path.join(cg.sam_dir, 'models', 'unet3D_STACOM_alldata','predicts_AS')
+main_folder = os.path.join(cg.sam_dir, 'models', 'sam_noweights_STACOM','predicts')
 patients = ff.find_all_target_files(['*'], main_folder)
 
 for i in range(0, len(patients)):
     # print(patients[i])
     patient = patients[i]
-    folder = os.path.join(patient, 'epoch-293')
+    folder = os.path.join(patient, 'epoch-135')
 
     pred_files = ff.find_all_target_files(['pred*'], folder)
 

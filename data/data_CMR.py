@@ -15,11 +15,11 @@ defaults = Defaults.Parameters()
         
 def build_data_CMR(args,dataset_name, train_batch_list, train_index_list, full_or_nonzero_slice, shuffle, augment_list, augment_frequency, return_arrays_or_dictionary = 'dictionary', sample_more_base = 0, sample_more_apex = 0):
     
-    if dataset_name == 'ACDC':
+    if dataset_name == 'ACDC': 
         data_path = os.path.join(defaults.sam_dir,'data/ACDC_database/temporal')
         patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/ACDC_Patient_List_training_testing.xlsx')
     
-    if dataset_name == 'STACOM':
+    if dataset_name == 'STACOM': 
         data_path = os.path.join(defaults.sam_dir,'data/STACOM_database/temporal')
         patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/STACOM_Patient_List_training_testing.xlsx')
 
@@ -34,6 +34,10 @@ def build_data_CMR(args,dataset_name, train_batch_list, train_index_list, full_o
     if dataset_name == 'AS':
         data_path = os.path.join(defaults.sam_dir,'data/AS_database/temporal')
         patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/AS_Patient_List_training_testing.xlsx')
+
+    if dataset_name == 'MM':
+        data_path = os.path.join(defaults.sam_dir,'data/MM_database/temporal')
+        patient_list_file = os.path.join(defaults.sam_dir, 'data/Patient_list/MM_Patient_List_training_testing.xlsx')
     
     ##### select train and valid dataset (using either batch_list or index_list, if not using one then set it to None)
 
@@ -64,10 +68,12 @@ def build_data_CMR(args,dataset_name, train_batch_list, train_index_list, full_o
         relabel_LV = False 
         only_myo = False
         seg_include_lowest_pixel = 100 
-    elif dataset_name == 'HFpEF' or dataset_name == 'HFpEF_multiT' or dataset_name == 'AS':
+    elif dataset_name == 'HFpEF' or dataset_name == 'HFpEF_multiT' or dataset_name == 'AS' or dataset_name == 'MM':
         relabel_LV = False
         only_myo = True
         seg_include_lowest_pixel = 1
+        # if dataset_name == 'MM':
+        #     seg_include_lowest_pixel = 50
     
     dataset_train = dataset_sax.Dataset_CMR(patient_list_file,
                                                  image_file_list_train,

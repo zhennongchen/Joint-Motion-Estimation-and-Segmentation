@@ -34,19 +34,19 @@ def get_args_parser():
     parser.add_argument('--seed', default=1234, type=int)   
     
     ########## important parameters
-    trial_name = 'unet2D_LSTM_AS_5shot'
+    trial_name = 'unet2D_LSTM_STACOM_alldata'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = None
+    pretrained_model_epoch = 70
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
-    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet2D_LSTM_STACOM_alldata', 'models', 'model-89.pth'), help='path where to save, empty for no saving')
-    # if pretrained_model_epoch == None:
-    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
-    # else:
-    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'unet2D_LSTM_STACOM_alldata', 'models', 'model-89.pth'), help='path where to save, empty for no saving')
+    if pretrained_model_epoch == None:
+        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    else:
+        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
-    parser.add_argument('--train_mode', default=True)
+    parser.add_argument('--train_mode', default=False)
     parser.add_argument('--validation', default=True)
     parser.add_argument('--save_prediction', default=True)
     parser.add_argument('--freeze_encoder', default = False) 
@@ -222,11 +222,11 @@ def run(args):
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,38,1)
+        pred_index_list = np.arange(184,320,1)
         pred_batch_list = None
-        save_folder_name = 'predicts_AS'
+        save_folder_name = 'predicts_MM_trained_only_on_STACOM'
         
-        dataset_pred = build_data_CMR(args, 'AS',
+        dataset_pred = build_data_CMR(args, 'MM',
                     pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = False,
                     augment_list = [], augment_frequency = -0.1,
