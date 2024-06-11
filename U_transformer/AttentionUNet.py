@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.EncoderDecoder import ConvBlock, EncoderLayer, DecoderLayer
+from Joint_motion_seg_estimate_CMR.U_transformer import ConvBlock, EncoderLayer, DecoderLayer
 
 class AttentionUNet(nn.Module):
     def __init__(self, channels: Tuple[int], is_residual: bool = False, bias = False) -> None:

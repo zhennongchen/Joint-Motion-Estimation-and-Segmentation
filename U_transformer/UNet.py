@@ -2,7 +2,7 @@ from typing import List, Tuple
 import torch
 import torch.nn as nn
 
-from models.EncoderDecoder import ConvBlock, EncoderLayer, DecoderLayer
+from Joint_motion_seg_estimate_CMR.U_transformer.EncoderDecoder import ConvBlock, EncoderLayer, DecoderLayer
 
 class UNet(nn.Module):
     def __init__(self, channels: Tuple[int], is_residual: bool = False, bias = False) -> None:
@@ -23,6 +23,7 @@ class UNet(nn.Module):
             skip_x_list.append(skip_x)
 
         x = self.bottle_neck(x)
+        print
 
         for i, skip_x in enumerate(reversed(skip_x_list)):
             x = self.decode[i](skip_x, x)
