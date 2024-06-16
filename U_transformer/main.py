@@ -36,15 +36,15 @@ def get_args_parser():
     ########## important parameters
     trial_name = 'u_transformer_STACOM_alldata'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = None
+    pretrained_model_epoch = 70
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
-    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'u_transformer_STACOM', 'models', 'model-100.pth'), help='path where to save, empty for no saving')
-    # if pretrained_model_epoch == None:
-    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
-    # else:
-    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'u_transformer_STACOM', 'models', 'model-100.pth'), help='path where to save, empty for no saving')
+    if pretrained_model_epoch == None:
+        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    else:
+        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
     parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
@@ -56,7 +56,7 @@ def get_args_parser():
         parser.add_argument('--start_epoch', default=1, type=int, metavar='N', help='start epoch')
     else:
         parser.add_argument('--start_epoch', default=pretrained_model_epoch+1, type=int, metavar='N', help='start epoch')
-    parser.add_argument('--epochs', default=100, type=int)
+    parser.add_argument('--epochs', default=300, type=int)
     parser.add_argument('--save_model_file_every_N_epoch', default=2, type = int) 
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR')
     parser.add_argument('--lr_update_every_N_epoch', default=1000000, type = int) # fixed learning rate
@@ -75,7 +75,7 @@ def get_args_parser():
     print(train_array, valid_array)
 
     parser.add_argument('--dataset_names', default=[['STACOM', 'sax'], ['ACDC', 'sax'], ['AS', 'sax'] ], type=list)
-    parser.add_argument('--dataset_split',default=[[np.arange(0,100,1) , np.arange(0,0,1)], [np.arange(0,0,1) , np.arange(0,100,1)], [np.arange(0,0,1) , np.arange(0,0,1)]], type=list) 
+    parser.add_argument('--dataset_split',default=[[np.arange(0,100,1) , np.arange(0,0,1)], [np.arange(0,100,1) , np.arange(100,150,1)], [np.arange(0,0,1) , np.arange(0,0,1)]], type=list) 
     parser.add_argument('--dataset_train', default= [], type = list)
     parser.add_argument('--dataset_valid', default= [], type = list)
 
