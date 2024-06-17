@@ -34,17 +34,17 @@ def get_args_parser():
     parser.add_argument('--seed', default=1234, type=int)   
     
     ########## important parameters
-    trial_name = 'u_transformer_STACOM_alldata'
+    trial_name = 'u_transformer_HF_5shot'
     main_save_model = os.path.join(defaults.sam_dir, 'models', trial_name)
-    pretrained_model_epoch = 70
+    pretrained_model_epoch = None
     parser.add_argument('--output_dir', default = main_save_model, help='path where to save, empty for no saving')
     parser.add_argument('--pretrained_model_epoch', default = pretrained_model_epoch)
 
-    # parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'u_transformer_STACOM', 'models', 'model-100.pth'), help='path where to save, empty for no saving')
-    if pretrained_model_epoch == None:
-        parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
-    else:
-        parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
+    parser.add_argument('--pretrained_model', default = os.path.join(defaults.sam_dir, 'models', 'u_transformer_STACOM_alldata', 'models', 'model-138.pth'), help='path where to save, empty for no saving')
+    # if pretrained_model_epoch == None:
+    #     parser.add_argument('--pretrained_model', default = None, help='path where to save, empty for no saving')
+    # else:
+    #     parser.add_argument('--pretrained_model', default = os.path.join(main_save_model, 'models', 'model-%s.pth' % pretrained_model_epoch), help='path where to save, empty for no saving')
 
     parser.add_argument('--train_mode', default=True)
     parser.add_argument('--validation', default=True)
@@ -65,17 +65,17 @@ def get_args_parser():
     
     # Dataset parameters
     # HFpEF
-    # five_shot_index = [29,48,15,26,24]
-    # arr = np.arange(0,53,1)
+    five_shot_index = [29,48,15,26,24]
+    arr = np.arange(0,53,1)
     # AS
-    five_shot_index = [0,1,2,3,4]
-    arr = np.arange(0,38,1)
+    # five_shot_index = [0,1,2,3,4]
+    # arr = np.arange(0,38,1)
     train_array = arr[five_shot_index]
     valid_array = np.delete(arr, five_shot_index)
     print(train_array, valid_array)
 
-    parser.add_argument('--dataset_names', default=[['STACOM', 'sax'], ['ACDC', 'sax'], ['AS', 'sax'] ], type=list)
-    parser.add_argument('--dataset_split',default=[[np.arange(0,100,1) , np.arange(0,0,1)], [np.arange(0,100,1) , np.arange(100,150,1)], [np.arange(0,0,1) , np.arange(0,0,1)]], type=list) 
+    parser.add_argument('--dataset_names', default=[['STACOM', 'sax'], ['ACDC', 'sax'], ['HFpEF', 'sax'] ], type=list)
+    parser.add_argument('--dataset_split',default=[[np.arange(0,0,1) , np.arange(0,0,1)], [np.arange(0,0,1) , np.arange(0,0,1)], [train_array , valid_array]], type=list) 
     parser.add_argument('--dataset_train', default= [], type = list)
     parser.add_argument('--dataset_valid', default= [], type = list)
 
@@ -222,11 +222,11 @@ def run(args):
 
     else:
         """""""""""""""""""""""""""""""""""""""INFERENCE"""""""""""""""""""""""""""""""""""""""
-        pred_index_list = np.arange(0,38,1)
+        pred_index_list = np.arange(184,320,1)
         pred_batch_list = None
-        save_folder_name = 'predicts_AS'
+        save_folder_name = 'predicts_MM'
         
-        dataset_pred = build_data_CMR(args, 'AS',
+        dataset_pred = build_data_CMR(args, 'MM',
                     pred_batch_list, pred_index_list, full_or_nonzero_slice = args.full_or_nonzero_slice,
                     shuffle = False,
                     augment_list = [], augment_frequency = -0.1,
